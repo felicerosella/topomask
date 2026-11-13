@@ -6,7 +6,7 @@ cd /d "%~dp0"
 
 where py >nul 2>nul
 if errorlevel 1 (
-  echo error: the Python launcher "py" was not found. Install Python 3.10 or later from python.org.
+  echo error: the Python launcher "py" was not found. Install Python 3.11 or later from python.org.
   exit /b 1
 )
 

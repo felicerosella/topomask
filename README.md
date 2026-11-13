@@ -122,7 +122,7 @@ On Windows PowerShell: `Get-FileHash topomask-vX.Y.Z-win-x64.zip -Algorithm SHA2
 
 ## Building from source
 
-The desktop app is built on Windows with Python 3.10 or later:
+The desktop app is built on Windows with Python 3.11 or later:
 
 ```bat
 build.bat
@@ -130,7 +130,7 @@ build.bat
 
 The script installs the hash-locked dependencies from `requirements-build.txt` into `.venv-build`, runs PyInstaller and writes `dist\topomask\` together with `THIRD_PARTY_LICENSES.txt`.
 
-To build the installer as well, run `powershell -File scripts\build_installer.ps1`. It uses `ISCC.exe` from [Inno Setup](https://jrsoftware.org/isinfo.php) if it is on the `PATH`, otherwise it downloads a pinned, checksum-verified Inno Setup release, and writes `out\topomask-vX.Y.Z-win-x64-setup.exe`.
+To build the installer as well, run `powershell -File scripts\build_installer.ps1`. It downloads a pinned, checksum-verified [Inno Setup](https://jrsoftware.org/isinfo.php) release into the temporary folder (an Inno Setup already installed is not used, so builds stay reproducible) and writes `out\topomask-vX.Y.Z-win-x64-setup.exe`.
 
 ## Known limitations
 

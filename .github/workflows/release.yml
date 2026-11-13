@@ -79,7 +79,7 @@ jobs:
       - run: cyclonedx-py requirements requirements.txt --output-format JSON --output-file sbom.cdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: sbom
+          name: release-sbom
           path: sbom.cdx.json
           if-no-files-found: error
 
@@ -88,15 +88,25 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      attestations: read
     env:
       TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      # Only this workflow's release artifacts: the reusable CI job uploads test builds
+      # with the same file names, which must never end up in a release.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: out
+          pattern: release-*
           merge-multiple: true
+      - name: Verify provenance of every published binary
+        working-directory: out
+        run: |
+          for f in *.zip *-setup.exe topomask.html; do
+            gh attestation verify "$f" --repo "$GH_REPO" --signer-workflow "$GH_REPO/.github/workflows/release.yml"
+          done
       - name: Checksums
         working-directory: out
         run: sha256sum -- *.zip *-setup.exe topomask.html sbom.cdx.json > SHA256SUMS.txt

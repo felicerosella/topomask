@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Builds the per-user installer from dist\topomask with Inno Setup.
-# Downloads a pinned, checksum-verified Inno Setup when ISCC.exe is not available.
+# Always uses a pinned, checksum-verified Inno Setup, never one already on the machine,
+# so every build uses the same compiler.
 #
 #   pwsh scripts/build_installer.ps1 [-OutputName topomask-v0.1.0-win-x64-setup]
 [CmdletBinding()]
@@ -29,22 +30,19 @@ $version = (Select-String -Path 'src/topomask.py' -Pattern '^__version__ = "([^"
 if (-not $version) { throw 'Could not read __version__ from src/topomask.py.' }
 if (-not $OutputName) { $OutputName = "topomask-v$version-win-x64-setup" }
 
-$iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
-if (-not $iscc) {
-    $tools = Join-Path ([System.IO.Path]::GetTempPath()) "innosetup-$InnoVersion"
-    $iscc = Join-Path $tools 'ISCC.exe'
-    if (-not (Test-Path $iscc)) {
-        $setup = Join-Path ([System.IO.Path]::GetTempPath()) "innosetup-$InnoVersion-x64.exe"
-        $url = "https://github.com/jrsoftware/issrc/releases/download/$InnoTag/innosetup-$InnoVersion-x64.exe"
-        Write-Host "Downloading Inno Setup $InnoVersion"
-        Invoke-WebRequest -Uri $url -OutFile $setup -UseBasicParsing
-        $actual = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
-        if ($actual -ne $InnoSha256) { throw "Inno Setup checksum mismatch: $actual" }
-        $proc = Start-Process -FilePath $setup -Wait -PassThru -ArgumentList @(
-            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CURRENTUSER', "/DIR=`"$tools`""
-        )
-        if ($proc.ExitCode -ne 0) { throw "Inno Setup installation failed with exit code $($proc.ExitCode)" }
-    }
+$tools = Join-Path ([System.IO.Path]::GetTempPath()) "innosetup-$InnoVersion"
+$iscc = Join-Path $tools 'ISCC.exe'
+if (-not (Test-Path $iscc)) {
+    $setup = Join-Path ([System.IO.Path]::GetTempPath()) "innosetup-$InnoVersion-x64.exe"
+    $url = "https://github.com/jrsoftware/issrc/releases/download/$InnoTag/innosetup-$InnoVersion-x64.exe"
+    Write-Host "Downloading Inno Setup $InnoVersion"
+    Invoke-WebRequest -Uri $url -OutFile $setup -UseBasicParsing
+    $actual = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
+    if ($actual -ne $InnoSha256) { throw "Inno Setup checksum mismatch: $actual" }
+    $proc = Start-Process -FilePath $setup -Wait -PassThru -ArgumentList @(
+        '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CURRENTUSER', "/DIR=`"$tools`""
+    )
+    if ($proc.ExitCode -ne 0) { throw "Inno Setup installation failed with exit code $($proc.ExitCode)" }
 }
 
 & $iscc "/DAppVersion=$version" "/F$OutputName" 'installer/topomask.iss'
