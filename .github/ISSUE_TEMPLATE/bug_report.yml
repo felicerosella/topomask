@@ -1,0 +1,49 @@
+name: Bug report
+description: Something does not work, or a value was not anonymized
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste real logs or real values.** Reproduce the problem with documentation values only:
+        IPv4 `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`; IPv6 `2001:db8::/32`; domains `example.com`, `example.net`.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Browser (topomask.html)
+        - Windows desktop app
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser or Windows version
+      placeholder: "Firefox 140, Windows 11 24H2"
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input (documentation values only)
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
