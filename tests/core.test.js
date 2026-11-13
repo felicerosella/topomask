@@ -321,6 +321,70 @@ test("sshd last login lines keep the weekday", () => {
   assert.equal(run("Last login: Thu Nov 13 10:00:00 2026").text, "Last login: Thu Nov 13 10:00:00 2026");
 });
 
+test("Fibre Channel WWNs keep the vendor part", () => {
+  const text = [
+    "port 21:00:00:24:ff:4c:12:34 and 50:06:01:60:3e:a0:12:34",
+    "port_name 0x10000090fa1b2c3d",
+    "wwpn: 500143801234ABCD",
+  ].join("\n");
+  const res = roundTrip(text);
+  assertAbsent(res.text, ["4c:12:34", "a0:12:34", "fa1b2c3d", "1234ABCD"]);
+  assert.match(res.text, /21:00:00:24:ff:00:00:01/);
+  assert.match(res.text, /50:06:01:60:00:00:00:02/);
+  assert.match(res.text, /port_name 0x10000090fa000003/);
+  assert.match(res.text, /wwpn: 5001438000000004/i);
+});
+
+test("SCSI NAA, EUI and multipath WWIDs keep the vendor part", () => {
+  const text = [
+    "mpatha (3600a098038303634762b4a5a6e5a6f31) dm-2 VENDOR,LUN",
+    "device naa.600a098038303634762b4a5a6e5a6f32 and eui.0025385b71b2c3d4",
+  ].join("\n");
+  const res = roundTrip(text);
+  assertAbsent(res.text, ["762b4a5a6e5a6f31", "762b4a5a6e5a6f32", "71b2c3d4"]);
+  assert.match(res.text, /naa\.600a0980{24}1/);
+  assert.match(res.text, /eui\.0025380{9}2/);
+  assert.match(res.text, /\(3600a0980{24}3\)/);
+});
+
+test("iSCSI IQNs follow the domain mapping and keep public vendors", () => {
+  const text = [
+    "target iqn.2026-01.net.example:array01.lun3 on array01.example.net",
+    "initiator iqn.1994-05.com.redhat:4b2f9c1d8e7a",
+  ].join("\n");
+  const res = roundTrip(text);
+  assertAbsent(res.text, ["array01", "example.net", "net.example", "4b2f9c1d8e7a"]);
+  assert.match(res.text, /iqn\.2026-01\.invalid\.dom1:iscsi1 on srv1\.dom1\.invalid/);
+  assert.match(res.text, /iqn\.1994-05\.com\.redhat:iscsi2/);
+});
+
+test("AWS ARNs and account IDs", () => {
+  const text = [
+    "arn:aws:iam::123456789012:role/jdoe-backup-admin",
+    "arn:aws:s3:::acme-backup-bucket/daily/db01.tar",
+    "AccountId: 123456789012, owner_id=210987654321",
+  ].join("\n");
+  const res = roundTrip(text);
+  assertAbsent(res.text, ["123456789012", "210987654321", "acme", "db01.tar"]);
+  assert.match(res.text, /arn:aws:iam::000000000001:role\//);
+  assert.match(res.text, /arn:aws:s3:::/);
+});
+
+test("hardware serial numbers with a keyword", () => {
+  const text = "Serial Number: CZJ1234ABC\nS/N 7XQ9-88Z2\nserial console enabled\nSerial Number: Not Specified";
+  const res = roundTrip(text);
+  assertAbsent(res.text, ["CZJ1234ABC", "7XQ9-88Z2"]);
+  assert.match(res.text, /serial console enabled/);
+  assert.match(res.text, /Serial Number: Not Specified/);
+});
+
+test("infra identifiers are stable on a second pass", () => {
+  const map = newMap();
+  const text = "wwpn 50:06:01:60:3e:a0:12:34 iqn.2026-01.net.example:lun1 arn:aws:iam::123456789012:role/x1-ops";
+  const first = anonymize(text, map, "", {});
+  assert.equal(anonymize(first.text, map, "", {}).text, first.text);
+});
+
 test("disabled categories are left alone", () => {
   const text = "192.0.2.1 web01.example.net";
   const res = run(text, { enabled: { ip: false } });

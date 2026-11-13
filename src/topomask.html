@@ -232,6 +232,7 @@ const VERSION = "0.1.0";
 const ENABLED_DEFAULT = Object.freeze({
   banner: true,
   pii: true,
+  infra: true,
   mac: true,
   email: true,
   host: true,
@@ -694,10 +695,13 @@ function stepPii(ctx, text) {
 
 /* ---------- 4. MAC addresses ---------- */
 
-function macFake(ctx, original, hex, format) {
+// Replaces the tail of a hex identifier with a counter and keeps the first `keep` digits,
+// which carry the vendor (OUI) in MAC addresses, WWNs and NAA identifiers.
+function hexFake(ctx, cat, original, hex, keep, format) {
   if (/^0+$/.test(hex) || /^f+$/i.test(hex)) return original;
   if (hasOwn(ctx.map.rev, original) && !ctx.realKeys.has(hex)) return original;
-  const fakeHex = token(ctx, "mac", original, (n) => hex.slice(0, 6) + n.toString(16).padStart(6, "0"), {
+  const width = hex.length - keep;
+  const fakeHex = token(ctx, cat, original, (n) => hex.slice(0, keep) + n.toString(16).padStart(width, "0"), {
     key: hex,
     rev: false,
   });
@@ -705,6 +709,8 @@ function macFake(ctx, original, hex, format) {
   alias(ctx, fake, original);
   return fake;
 }
+
+const macFake = (ctx, original, hex, format) => hexFake(ctx, "mac", original, hex, 6, format);
 
 function stepMac(ctx, text) {
   text = sub(
@@ -724,6 +730,76 @@ function stepMac(ctx, text) {
     /(?<![\w.:-])[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}(?![\w:-]|\.\w)/g,
     (m) => macFake(ctx, m, m.split(".").join("").toLowerCase(), (h) => h.match(/.{4}/g).join(".")),
   );
+}
+
+/* ---------- 3b. storage, cloud and hardware identifiers ---------- */
+
+const ARN_TYPES = new Set(words(`
+  role user group policy instance volume snapshot image function table key alias secret stack cluster
+  service task task-definition loadbalancer targetgroup listener db cluster-snapshot bucket vpc subnet
+  security-group network-interface certificate parameter repository log-group layer topic queue
+  instance-profile server-certificate saml-provider oidc-provider assumed-role federated-user
+`));
+
+const SERIAL_SKIP = /^(?:none|unknown|default|not[\s_-]?(?:specified|available|applicable)|n\/?a|0+|to be filled.*)$/i;
+
+function reverseDomain(name) {
+  return name.split(".").reverse().join(".");
+}
+
+// iqn.YYYY-MM.<reversed domain>[:<unique name>]: the domain follows the host mapping,
+// so it stays consistent with the same domain seen elsewhere in the text.
+function iqnFake(ctx, original, date, revDomain, suffix) {
+  if (hasOwn(ctx.map.rev, original) && !ctx.realKeys.has(original.toLowerCase())) return original;
+  const domain = ctx.enabled.host ? reverseDomain(host(ctx, reverseDomain(revDomain))) : revDomain;
+  const name = suffix ? ":" + token(ctx, "iscsi", suffix, (n) => `iscsi${n}`) : "";
+  const fake = `iqn.${date}.${domain}${name}`;
+  if (fake !== original) alias(ctx, fake, original);
+  return fake;
+}
+
+function arnFake(ctx, original, partition, service, region, account, resource) {
+  const acct = account ? token(ctx, "awsaccount", account, (n) => String(n).padStart(12, "0")) : "";
+  const res = resource
+    .split(/([/:])/)
+    .map((seg, i) => {
+      if (i % 2 === 1 || !seg || seg === "*" || ARN_TYPES.has(seg.toLowerCase())) return seg;
+      if (!/[A-Za-z]/.test(seg) || seg.length < 3 || isPlaceholder(seg)) return seg;
+      return seg.includes(".") ? hostAny(ctx, seg) : short(ctx, seg);
+    })
+    .join("");
+  return `arn:${partition}:${service}:${region}:${acct}:${res}`;
+}
+
+function stepInfra(ctx, text) {
+  const x = (re, fn) => {
+    text = sub(ctx, "infra", text, re, fn);
+  };
+  // Fibre Channel WWN/WWPN. NAA 1/2 names carry the OUI in bytes 3-5, NAA 5/6 right after the first digit.
+  const wwnKeep = (hex) => (/^[12]/.test(hex) ? 10 : 8);
+  x(/(?<![\w:.-])[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){7}(?![\w:-]|\.\w)/g, (m) => {
+    const hex = m.split(":").join("").toLowerCase();
+    return hexFake(ctx, "wwn", m, hex, wwnKeep(hex), (h) => h.match(/../g).join(":"));
+  });
+  x(/\b((?:wwn|wwpn|wwnn|port_name|node_name|port name|node name)\b["']?\s*[:=]?\s*["']?)(0x)?([0-9A-Fa-f]{16})\b/gi, (m, pre, ox, h) =>
+    pre + hexFake(ctx, "wwn", (ox || "") + h, h.toLowerCase(), wwnKeep(h), (f) => (ox || "") + f),
+  );
+  // SCSI/NVMe device identifiers: naa.<hex>, eui.<hex> and multipath WWIDs (3 + NAA 6).
+  x(/\b(naa\.)([0-9A-Fa-f]{32}|[0-9A-Fa-f]{16})\b/gi, (m, pre, h) => pre + hexFake(ctx, "naa", h, h.toLowerCase(), 7, (f) => f));
+  x(/\b(eui\.)([0-9A-Fa-f]{16})\b/gi, (m, pre, h) => pre + hexFake(ctx, "naa", h, h.toLowerCase(), 6, (f) => f));
+  x(/(?<![\w.-])3(6[0-9A-Fa-f]{31})(?![\w.-])/g, (m) => hexFake(ctx, "naa", m, m.toLowerCase(), 8, (f) => f));
+  x(/\biqn\.(\d{4}-\d{2})\.([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?::([^\s,;"'<>()\]]+))?/g, (m, date, dom, suffix) =>
+    iqnFake(ctx, m, date, dom, suffix),
+  );
+  x(/\barn:(aws[\w-]*):([\w-]+):([\w-]*):(\d{12})?:([^\s"',;)\]}]+)/g, (m, ...g) => arnFake(ctx, m, ...g.slice(0, 5)));
+  x(/\b(account(?:[_ -]?id)?|owner[_ -]?id|aws[_ -]?account(?:[_ -]?id)?)(["']?\s*[:=]\s*["']?)(\d{12})\b/gi, (m, k, sep, id) =>
+    k + sep + token(ctx, "awsaccount", id, (n) => String(n).padStart(12, "0")),
+  );
+  x(/\b(serial(?:[ _-]?(?:number|no\.?|num))?|s\/n)(\s*[:=#]?\s*)([A-Za-z0-9][A-Za-z0-9-]{4,})/gi, (m, k, sep, value) => {
+    if (!/\d/.test(value) || SERIAL_SKIP.test(value) || isPlaceholder(value)) return m;
+    return k + sep + token(ctx, "serial", value, (n) => `SERIAL_${n}`);
+  });
+  return text;
 }
 
 /* ---------- 5-6. hosts and email ---------- */
@@ -1044,6 +1120,7 @@ function anonymize(text, map, termsText, opts) {
   t = stepSecrets(ctx, t);
   t = stepTerms(ctx, t, termsText === undefined ? TERMS_DEFAULT : termsText);
   if (e.pii) t = stepPii(ctx, t);
+  if (e.infra) t = stepInfra(ctx, t);
   if (e.mac) t = stepMac(ctx, t);
   if (e.email) t = stepEmail(ctx, t);
   if (e.host) t = stepHost(ctx, t);
@@ -1209,6 +1286,7 @@ if (typeof module !== "undefined") {
       browserNote: "Data stays in this browser.",
       cat_banner: "ASCII banners",
       cat_pii: "Personal data (IBAN, tax ID, VAT, phone)",
+      cat_infra: "Storage, cloud and hardware IDs (WWN, IQN, NAA, AWS, serials)",
       cat_mac: "MAC addresses",
       cat_email: "Email addresses",
       cat_host: "Hostnames and domains",
@@ -1220,6 +1298,7 @@ if (typeof module !== "undefined") {
       stat_term: "term",
       stat_banner: "banner",
       stat_pii: "pii",
+      stat_infra: "infra",
       stat_mac: "mac",
       stat_email: "email",
       stat_host: "host",
@@ -1286,6 +1365,7 @@ if (typeof module !== "undefined") {
       browserNote: "I dati restano in questo browser.",
       cat_banner: "Banner ASCII",
       cat_pii: "Dati personali (IBAN, CF, P.IVA, telefono)",
+      cat_infra: "ID storage, cloud e hardware (WWN, IQN, NAA, AWS, seriali)",
       cat_mac: "Indirizzi MAC",
       cat_email: "Indirizzi email",
       cat_host: "Hostname e domini",
