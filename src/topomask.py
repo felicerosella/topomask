@@ -18,7 +18,7 @@ import webbrowser
 from collections.abc import Callable, Mapping
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -153,6 +153,125 @@ def parse_result(raw: object) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Global hotkeys: parsing and registration state. Platform independent so it can be
+# tested anywhere; the Win32 calls are injected by HotkeyThread.
+# ---------------------------------------------------------------------------
+
+ACTIONS = ("anonymize", "restore")
+DEFAULT_HOTKEYS: dict[str, str | None] = {"anonymize": "Ctrl+Alt+A", "restore": "Ctrl+Alt+R"}
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
+MOD_NOREPEAT = 0x4000
+MODIFIER_NAMES = (("Ctrl", MOD_CONTROL), ("Alt", MOD_ALT), ("Shift", MOD_SHIFT), ("Win", MOD_WIN))
+VK_F1 = 0x70
+
+
+def parse_hotkey(text: str) -> tuple[int, int]:
+    """Parse "Ctrl+Alt+A" into (modifiers, virtual-key code) for RegisterHotKey."""
+    parts = [p.strip() for p in str(text).split("+")]
+    if len(parts) < 2 or not all(parts):
+        raise ValueError(f"invalid shortcut: {text!r}")
+    names = {name.lower(): flag for name, flag in MODIFIER_NAMES}
+    mods = 0
+    for part in parts[:-1]:
+        flag = names.get(part.lower())
+        if flag is None or mods & flag:
+            raise ValueError(f"invalid modifier in shortcut: {part!r}")
+        mods |= flag
+    if not mods & (MOD_CONTROL | MOD_ALT | MOD_WIN):
+        raise ValueError("a shortcut needs Ctrl, Alt or Win")
+    key = parts[-1].upper()
+    if len(key) == 1 and key.isascii() and key.isalnum():
+        return mods, ord(key)
+    if key.startswith("F") and key[1:].isdigit() and 1 <= int(key[1:]) <= 24:
+        return mods, VK_F1 + int(key[1:]) - 1
+    raise ValueError(f"unsupported key in shortcut: {parts[-1]!r} (use A-Z, 0-9 or F1-F24)")
+
+
+def format_hotkey(mods: int, vk: int) -> str:
+    names = [name for name, flag in MODIFIER_NAMES if mods & flag]
+    key = f"F{vk - VK_F1 + 1}" if VK_F1 <= vk < VK_F1 + 24 else chr(vk)
+    return "+".join([*names, key])
+
+
+def normalize_hotkey(text: str) -> str:
+    return format_hotkey(*parse_hotkey(text))
+
+
+def validate_hotkeys(wanted: Mapping[str, object]) -> dict[str, str | None]:
+    """Normalize a requested {action: shortcut or None} mapping; raise ValueError if unusable."""
+    result: dict[str, str | None] = {}
+    for action in ACTIONS:
+        value = wanted.get(action)
+        result[action] = normalize_hotkey(str(value)) if value else None
+    used = [v for v in result.values() if v]
+    if len(used) != len(set(used)):
+        raise ValueError("the two actions cannot use the same shortcut")
+    return result
+
+
+def hotkeys_from_settings(storage: Storage) -> dict[str, str | None]:
+    """Shortcuts saved by the UI, falling back to the defaults for anything invalid."""
+    saved: object = None
+    raw = storage.read("settings.json")
+    if raw:
+        try:
+            saved = json.loads(raw).get("hotkeys")
+        except (ValueError, AttributeError):
+            saved = None
+    if not isinstance(saved, dict):
+        return dict(DEFAULT_HOTKEYS)
+    merged = {a: saved[a] if a in saved else DEFAULT_HOTKEYS[a] for a in ACTIONS}
+    try:
+        return validate_hotkeys(merged)
+    except ValueError:
+        log.warning("saved shortcuts are invalid, using the defaults")
+        return dict(DEFAULT_HOTKEYS)
+
+
+class HotkeyRegistry:
+    """Which shortcut is registered for each action.
+
+    Must only be used from the thread that owns the hotkeys: RegisterHotKey with a NULL
+    window binds the hotkey to the calling thread's message queue.
+    """
+
+    IDS: ClassVar[Mapping[str, int]] = {"anonymize": 1, "restore": 2}
+    ACTION_BY_ID: ClassVar[Mapping[int, str]] = {1: "anonymize", 2: "restore"}
+
+    def __init__(self, register: Callable[[int, int, int], bool], unregister: Callable[[int], None]) -> None:
+        self._register = register
+        self._unregister = unregister
+        self.active: dict[str, str | None] = dict.fromkeys(ACTIONS)
+
+    def _try(self, action: str, hotkey: str) -> bool:
+        mods, vk = parse_hotkey(hotkey)
+        return self._register(self.IDS[action], mods | MOD_NOREPEAT, vk)
+
+    def apply(self, wanted: Mapping[str, str | None]) -> dict[str, dict[str, str | None]]:
+        """Register the wanted shortcuts; a taken one leaves the previous shortcut active."""
+        result: dict[str, dict[str, str | None]] = {}
+        for action in ACTIONS:
+            new, old = wanted.get(action), self.active[action]
+            error: str | None = None
+            if new != old:
+                if old is not None:
+                    self._unregister(self.IDS[action])
+                    self.active[action] = None
+                if new is not None:
+                    if self._try(action, new):
+                        self.active[action] = new
+                    else:
+                        error = "in_use"
+                        if old is not None and self._try(action, old):
+                            self.active[action] = old
+            result[action] = {"hotkey": self.active[action], "error": error}
+        return result
+
+
+# ---------------------------------------------------------------------------
 # Update check: opt-in, desktop app only. One GET of the latest release metadata;
 # no text, mapping or identifier is sent, and nothing is downloaded or installed.
 # ---------------------------------------------------------------------------
@@ -275,9 +394,7 @@ if sys.platform == "win32":
     GMEM_MOVEABLE = 0x0002
     WM_HOTKEY = 0x0312
     WM_QUIT = 0x0012
-    MOD_ALT = 0x0001
-    MOD_CONTROL = 0x0002
-    MOD_NOREPEAT = 0x4000
+    WM_APP_RELOAD = 0x8001
     ERROR_ALREADY_EXISTS = 183
     MB_OK = 0x0
     MB_ICONINFORMATION = 0x40
@@ -432,12 +549,12 @@ if sys.platform == "win32":
     class HotkeyThread(threading.Thread):
         """Owns the clipboard window and the global hotkeys; runs a Win32 message loop."""
 
-        VK_A = 0x41
-        VK_R = 0x52
+        UPDATE_TIMEOUT = 3.0
 
         def __init__(
             self,
             clipboard: Clipboard,
+            wanted: Mapping[str, str | None],
             on_hotkey: Callable[[str], None],
             on_conflict: Callable[[str], None],
         ) -> None:
@@ -447,35 +564,59 @@ if sys.platform == "win32":
             self.on_conflict = on_conflict
             self.thread_id = 0
             self.started_event = threading.Event()
-            self.bindings = {1: ("anonymize", self.VK_A, "Ctrl+Alt+A"), 2: ("restore", self.VK_R, "Ctrl+Alt+R")}
+            self.registry = HotkeyRegistry(self._register, self._unregister)
+            self._wanted = dict(wanted)
+            self._result: dict[str, dict[str, str | None]] = {}
+            self._applied = threading.Event()
+            self._update_lock = threading.Lock()
+
+        @staticmethod
+        def _register(hk_id: int, mods: int, vk: int) -> bool:
+            return bool(RegisterHotKey(None, hk_id, mods, vk))
+
+        @staticmethod
+        def _unregister(hk_id: int) -> None:
+            UnregisterHotKey(None, hk_id)
 
         def run(self) -> None:
             self.thread_id = GetCurrentThreadId()
-            registered: list[int] = []
             try:
                 self.clipboard.create_owner()
-                for hk_id, (_action, vk, label) in self.bindings.items():
-                    if RegisterHotKey(None, hk_id, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, vk):
-                        registered.append(hk_id)
-                    else:
-                        log.warning("hotkey %s unavailable", label)
-                        self.on_conflict(label)
+                for action, outcome in self.registry.apply(self._wanted).items():
+                    if outcome["error"]:
+                        log.warning("hotkey for %s unavailable", action)
+                        self.on_conflict(str(self._wanted[action]))
                 self.started_event.set()
                 msg = wintypes.MSG()
                 while GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                    if msg.message == WM_HOTKEY and msg.wParam in self.bindings:
-                        action = self.bindings[msg.wParam][0]
-                        threading.Thread(target=self.on_hotkey, args=(action,), daemon=True).start()
+                    if msg.message == WM_HOTKEY:
+                        pressed = HotkeyRegistry.ACTION_BY_ID.get(msg.wParam)
+                        if pressed:
+                            threading.Thread(target=self.on_hotkey, args=(pressed,), daemon=True).start()
+                        continue
+                    if msg.message == WM_APP_RELOAD:
+                        self._result = self.registry.apply(self._wanted)
+                        self._applied.set()
                         continue
                     TranslateMessage(ctypes.byref(msg))
                     DispatchMessageW(ctypes.byref(msg))
             except Exception as exc:
                 log.error("hotkey thread failed: %s", type(exc).__name__)
             finally:
-                for hk_id in registered:
-                    UnregisterHotKey(None, hk_id)
+                self.registry.apply(dict.fromkeys(ACTIONS))
                 self.clipboard.destroy_owner()
                 self.started_event.set()
+
+        def update(self, wanted: Mapping[str, str | None]) -> dict[str, dict[str, str | None]]:
+            """Re-register the shortcuts on the hotkey thread and wait for the outcome."""
+            with self._update_lock:
+                self._wanted = dict(wanted)
+                self._applied.clear()
+                if not self.thread_id or not PostThreadMessageW(self.thread_id, WM_APP_RELOAD, 0, 0):
+                    raise RuntimeError("the hotkey thread is not running")
+                if not self._applied.wait(self.UPDATE_TIMEOUT):
+                    raise TimeoutError("the hotkey thread did not respond")
+                return self._result
 
         def stop(self) -> None:
             if self.thread_id:
@@ -500,6 +641,7 @@ class Api:
         self._clipboard = clipboard
         self._ready = ready
         self._release_url: str | None = None
+        self._hotkeys: Any = None
 
     def state(self) -> dict[str, str | None]:
         return self._storage.state()
@@ -523,6 +665,28 @@ class Api:
         self._ready.set()
         log.info("ui ready")
         return True
+
+    def hotkeys(self) -> dict[str, Any]:
+        active = dict(self._hotkeys.registry.active) if self._hotkeys else dict.fromkeys(ACTIONS)
+        return {"active": active, "defaults": dict(DEFAULT_HOTKEYS)}
+
+    def set_hotkeys(self, wanted: Any) -> dict[str, Any]:
+        """Apply new shortcuts; the UI saves them to settings.json only if they took effect."""
+        if not isinstance(wanted, dict):
+            return {"error": "invalid request"}
+        try:
+            normalized = validate_hotkeys(wanted)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if self._hotkeys is None:
+            return {"error": "global shortcuts are not available"}
+        try:
+            result = self._hotkeys.update(normalized)
+        except (RuntimeError, TimeoutError) as exc:
+            log.error("hotkey update failed: %s", type(exc).__name__)
+            return {"error": str(exc)}
+        log.info("hotkeys updated")
+        return {"result": result}
 
     def open_release(self) -> bool:
         """Open the release page found by the update check; JS cannot pass its own URL."""
@@ -561,14 +725,21 @@ class App:
                 visible=lambda _item: self.update is not None,
             ),
             pystray.MenuItem("Open", self._show, default=True),
-            pystray.MenuItem("Anonymize clipboard", lambda: self._spawn("anonymize")),
-            pystray.MenuItem("Restore clipboard", lambda: self._spawn("restore")),
+            pystray.MenuItem(
+                lambda _item: self._menu_label("Anonymize clipboard", "anonymize"), lambda: self._spawn("anonymize")
+            ),
+            pystray.MenuItem(
+                lambda _item: self._menu_label("Restore clipboard", "restore"), lambda: self._spawn("restore")
+            ),
             pystray.MenuItem("Open data folder", self._open_folder),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._quit),
         )
         self.icon = pystray.Icon(APP_NAME, load_icon(64), APP_NAME, menu)
-        self.hotkeys = HotkeyThread(self.clipboard, self.handle_hotkey, self._on_conflict)
+        self.hotkeys = HotkeyThread(
+            self.clipboard, hotkeys_from_settings(storage), self.handle_hotkey, self._on_conflict
+        )
+        self.api._hotkeys = self.hotkeys
         self.updates = UpdateChecker(storage, self._on_update)
 
     def run(self) -> None:
@@ -589,6 +760,10 @@ class App:
             self.icon.notify(message, APP_NAME)
         except Exception as exc:
             log.warning("notification failed: %s", type(exc).__name__)
+
+    def _menu_label(self, text: str, action: str) -> str:
+        hotkey = self.hotkeys.registry.active.get(action)
+        return f"{text} ({hotkey})" if hotkey else text
 
     def _on_update(self, info: dict[str, str]) -> None:
         self.update = info
