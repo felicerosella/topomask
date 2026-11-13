@@ -17,12 +17,12 @@ from PyInstaller.utils.win32.versioninfo import (
 
 ROOT = Path(SPECPATH)
 sys.path.insert(0, str(ROOT / "src"))
-from topomask import __version__, draw_icon  # noqa: E402
+from topomask import __version__, load_icon  # noqa: E402
 
 BUILD = ROOT / "build"
 BUILD.mkdir(exist_ok=True)
 ICON = BUILD / "topomask.ico"
-draw_icon(256).save(ICON, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+load_icon(256).save(ICON, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
 numbers = (*(int(x) for x in __version__.split(".")), 0)
 version_info = VSVersionInfo(
@@ -62,7 +62,7 @@ VERSION_FILE.write_text(str(version_info), encoding="utf-8")
 a = Analysis(
     [str(ROOT / "src" / "topomask.py")],
     pathex=[str(ROOT / "src")],
-    datas=[(str(ROOT / "src" / "topomask.html"), ".")],
+    datas=[(str(ROOT / "src" / "topomask.html"), "."), (str(ROOT / "assets" / "icon.png"), ".")],
     hiddenimports=["pystray._win32"],
     excludes=["tkinter"],
     noarchive=False,

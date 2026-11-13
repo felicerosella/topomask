@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Project logo with a dark-theme variant, application icon and favicon.
+
 ## [0.1.0] - 2026-11-13
 
 ### Added

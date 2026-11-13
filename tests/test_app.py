@@ -91,3 +91,11 @@ def test_draw_icon() -> None:
     img = topomask.draw_icon(32)
     assert img.size == (32, 32)
     assert img.getpixel((16, 16))[:3] == (255, 255, 255)
+
+
+def test_load_icon_uses_bundled_asset() -> None:
+    pytest.importorskip("PIL")
+    assert topomask.resource_path("icon.png").is_file()
+    img = topomask.load_icon(48)
+    assert img.size == (48, 48)
+    assert img.mode == "RGBA"

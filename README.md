@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+    <img src="assets/logo.png" alt="topomask" width="420">
+  </picture>
+</p>
+
 # topomask
 
 **Reversible, topology-preserving anonymizer for logs and configs before you paste them into an AI.**

@@ -27,7 +27,7 @@ APP_NAME = "topomask"
 DATA_FILES = frozenset({"map.json", "terms.txt", "keep.txt", "settings.json"})
 HOST_MARKER = 'data-host="browser"'
 DESKTOP_MARKER = 'data-host="desktop"'
-ICON_COLOR = "#24507A"
+ICON_COLOR = "#011934"
 READY_TIMEOUT = 15.0
 LOG_MAX_BYTES = 256 * 1024
 
@@ -37,8 +37,11 @@ log = logging.getLogger(APP_NAME)
 def resource_path(name: str) -> Path:
     """Locate a bundled resource both from source and from a PyInstaller build."""
     base = getattr(sys, "_MEIPASS", None)
-    root = Path(base) if base else Path(__file__).resolve().parent
-    return root / name
+    if base:
+        return Path(base) / name
+    here = Path(__file__).resolve().parent
+    candidate = here / name
+    return candidate if candidate.exists() else here.parent / "assets" / name
 
 
 def load_html(path: Path) -> str:
@@ -97,6 +100,18 @@ def setup_logging(folder: Path) -> None:
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     log.addHandler(handler)
     log.setLevel(logging.INFO)
+
+
+def load_icon(size: int) -> Image:
+    """Bundled application icon, or a drawn fallback when running from a partial checkout."""
+    from PIL import Image
+
+    path = resource_path("icon.png")
+    if path.is_file():
+        with Image.open(path) as img:
+            icon: Image.Image = img.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+            return icon
+    return draw_icon(size)
 
 
 def draw_icon(size: int) -> Image:
@@ -415,7 +430,7 @@ class App:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._quit),
         )
-        self.icon = pystray.Icon(APP_NAME, draw_icon(64), APP_NAME, menu)
+        self.icon = pystray.Icon(APP_NAME, load_icon(64), APP_NAME, menu)
         self.hotkeys = HotkeyThread(self.clipboard, self.handle_hotkey, self._on_conflict)
 
     def run(self) -> None:
