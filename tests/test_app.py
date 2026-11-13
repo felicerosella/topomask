@@ -402,3 +402,10 @@ def test_delete_profile(tmp_path: Path) -> None:
     assert (tmp_path / "profiles" / "keep" / "map.json").exists()
     with pytest.raises(ValueError):
         api.delete_profile("../keep")
+
+
+def test_version_is_consistent() -> None:
+    html = (ROOT / "src" / "topomask.html").read_text(encoding="utf-8")
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert f'const VERSION = "{topomask.__version__}";' in html
+    assert f'\nversion = "{topomask.__version__}"\n' in pyproject
