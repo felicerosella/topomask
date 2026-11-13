@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv-build/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build output
+build/
+dist/
+*.zip
+SHA256SUMS.txt
+sbom.cdx.json
+
+# Local data and editors
+map.json
+terms.txt
+keep.txt
+settings.json
+*.log
+.DS_Store
+.idea/
+.vscode/
