@@ -35,3 +35,13 @@ def test_notice_includes_installed_license(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_main_fails_without_dist(tmp_path: Path) -> None:
     assert collect_licenses.main(["--dist", str(tmp_path / "missing")]) == 1
+
+
+def test_vendored_license_fallback(tmp_path: Path) -> None:
+    (tmp_path / "some-pkg.txt").write_text("BSD text", encoding="utf-8")
+    assert collect_licenses.vendored_license("Some-Pkg", tmp_path) == [("some-pkg.txt", "BSD text")]
+    assert collect_licenses.vendored_license("other", tmp_path) == []
+
+
+def test_proxy_tools_license_is_vendored() -> None:
+    assert collect_licenses.vendored_license("proxy-tools") != []

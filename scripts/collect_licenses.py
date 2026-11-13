@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Collect the license texts of the bundled dependencies into the PyInstaller output folder.
 
-Fails if any runtime dependency listed in requirements.txt ships no license file, so a
-release never goes out with incomplete third-party notices.
+Fails if any runtime dependency listed in requirements.txt has no license text, so a
+release never goes out with incomplete third-party notices. Packages whose distribution
+ships no license file can provide one in licenses/<name>.txt.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from importlib import metadata
 from pathlib import Path
 
 LICENSE_NAME = re.compile(r"(LICEN[CS]E|COPYING|NOTICE|AUTHORS)", re.IGNORECASE)
+VENDORED = Path(__file__).resolve().parent.parent / "licenses"
 REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==")
 SOURCE_NOTES = {
     "pystray": "Licensed under the LGPL-3.0. Source code: https://github.com/moses-palmer/pystray",
@@ -48,6 +50,13 @@ def python_license() -> str | None:
     return None
 
 
+def vendored_license(name: str, folder: Path = VENDORED) -> list[tuple[str, str]]:
+    path = folder / f"{name.lower()}.txt"
+    if path.is_file():
+        return [(path.name, path.read_text(encoding="utf-8"))]
+    return []
+
+
 def build_notice(names: list[str]) -> tuple[str, list[str]]:
     sections: list[str] = []
     missing: list[str] = []
@@ -57,7 +66,7 @@ def build_notice(names: list[str]) -> tuple[str, list[str]]:
         except metadata.PackageNotFoundError:
             missing.append(f"{name} (not installed)")
             continue
-        files = license_files(dist)
+        files = license_files(dist) or vendored_license(name)
         if not files:
             missing.append(name)
             continue
