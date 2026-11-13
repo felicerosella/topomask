@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -117,3 +118,112 @@ def test_startup_error_message_suggests_unblock(monkeypatch: pytest.MonkeyPatch,
 def test_parse_args_debug() -> None:
     assert topomask.parse_args(["--debug"]).debug is True
     assert topomask.parse_args([]).debug is False
+
+
+class FakeResponse:
+    def __init__(self, payload: object, status: int = 200) -> None:
+        self.status = status
+        self._body = json.dumps(payload).encode()
+
+    def read(self, _size: int = -1) -> bytes:
+        return self._body
+
+    def __enter__(self) -> FakeResponse:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+def release(tag: str, **extra: object) -> dict[str, object]:
+    return {"tag_name": tag, "html_url": f"{topomask.REPO_URL}/releases/tag/{tag}", **extra}
+
+
+def opener_for(payload: object, status: int = 200, calls: list[str] | None = None) -> topomask.Opener:
+    def opener(request: object, timeout: float) -> FakeResponse:
+        if calls is not None:
+            calls.append(request.full_url)  # type: ignore[attr-defined]
+        return FakeResponse(payload, status)
+
+    return opener
+
+
+def test_version_comparison() -> None:
+    assert topomask.parse_version("v1.2.3") == (1, 2, 3)
+    assert topomask.parse_version("1.2") is None
+    assert topomask.parse_version("v1.2.3-rc1") is None
+    assert topomask.is_newer("v0.1.1", "0.1.0")
+    assert topomask.is_newer("v0.10.0", "0.9.9")
+    assert not topomask.is_newer("v0.1.0", "0.1.0")
+    assert not topomask.is_newer("garbage", "0.1.0")
+
+
+def test_fetch_latest_reports_newer_release() -> None:
+    calls: list[str] = []
+    found = topomask.fetch_latest(opener_for(release("v99.0.0"), calls=calls))
+    assert found == {"version": "v99.0.0", "url": f"{topomask.REPO_URL}/releases/tag/v99.0.0"}
+    assert calls == [topomask.RELEASES_API]
+
+
+def test_fetch_latest_ignores_current_draft_and_prerelease() -> None:
+    assert topomask.fetch_latest(opener_for(release(f"v{topomask.__version__}"))) is None
+    assert topomask.fetch_latest(opener_for(release("v99.0.0", draft=True))) is None
+    assert topomask.fetch_latest(opener_for(release("v99.0.0", prerelease=True))) is None
+
+
+def test_fetch_latest_rejects_unexpected_metadata() -> None:
+    with pytest.raises(ValueError, match="outside"):
+        topomask.fetch_latest(opener_for({"tag_name": "v99.0.0", "html_url": "https://example.com/x"}))
+    with pytest.raises(ValueError):
+        topomask.fetch_latest(opener_for(["not", "a", "dict"]))
+    with pytest.raises(OSError):
+        topomask.fetch_latest(opener_for(release("v99.0.0"), status=500))
+
+
+def test_updates_require_explicit_consent(tmp_path: Path) -> None:
+    storage = topomask.Storage(tmp_path)
+    assert not topomask.updates_enabled(storage)
+    storage.write("settings.json", json.dumps({"updates": False}))
+    assert not topomask.updates_enabled(storage)
+    storage.write("settings.json", "{broken")
+    assert not topomask.updates_enabled(storage)
+    storage.write("settings.json", json.dumps({"updates": True}))
+    assert topomask.updates_enabled(storage)
+
+
+def test_update_checker_runs_daily_only_when_enabled(tmp_path: Path) -> None:
+    storage = topomask.Storage(tmp_path)
+    calls: list[str] = []
+    seen: list[dict[str, str]] = []
+    checker = topomask.UpdateChecker(storage, seen.append, opener_for(release("v99.0.0"), calls=calls))
+
+    assert checker.check_once(now=100_000.0) is None
+    assert calls == []
+
+    storage.write("settings.json", json.dumps({"updates": True}))
+    assert checker.check_once(now=100_000.0) is not None
+    assert checker.check_once(now=100_000.0 + 3600) is None
+    assert checker.check_once(now=100_000.0 + topomask.UPDATE_INTERVAL) is not None
+    assert len(calls) == 2
+    assert len(seen) == 1
+
+
+def test_update_checker_survives_network_errors(tmp_path: Path) -> None:
+    storage = topomask.Storage(tmp_path)
+    storage.write("settings.json", json.dumps({"updates": True}))
+
+    def failing(request: object, timeout: float) -> FakeResponse:
+        raise OSError("offline")
+
+    checker = topomask.UpdateChecker(storage, lambda _info: None, failing)
+    assert checker.check_once(now=100_000.0) is None
+
+
+def test_open_release_only_opens_the_checked_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(topomask.webbrowser, "open", opened.append)
+    api = topomask.Api(topomask.Storage(tmp_path), object(), threading.Event())
+    assert api.open_release() is False
+    api._release_url = f"{topomask.REPO_URL}/releases/tag/v99.0.0"
+    assert api.open_release() is True
+    assert opened == [f"{topomask.REPO_URL}/releases/tag/v99.0.0"]

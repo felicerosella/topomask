@@ -87,6 +87,11 @@ button.danger { border-color: var(--err); color: var(--err); }
 .status.err { color: var(--err); }
 .banner-error { border: 1px solid var(--err); color: var(--err); border-radius: var(--radius); padding: 8px 12px; }
 .banner-error[hidden] { display: none; }
+.notice { border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius); padding: 10px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: none; margin-bottom: 12px; }
+.notice[hidden] { display: none; }
+.notice p { margin: 0; flex: 1 1 320px; }
+.link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }
+.link-button[hidden] { display: none; }
 table { border-collapse: collapse; width: 100%; font: 13px/1.4 var(--mono); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--border); word-break: break-all; }
 th { font-family: var(--sans); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
@@ -121,6 +126,11 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
   </nav>
   <main>
     <div id="load-error" class="banner-error" role="alert" hidden></div>
+    <div id="update-consent" class="notice desktop-only" role="region" hidden>
+      <p data-i18n="updConsent"></p>
+      <button type="button" id="btn-upd-yes" class="btn primary" data-i18n="updYes"></button>
+      <button type="button" id="btn-upd-no" class="btn" data-i18n="updNo"></button>
+    </div>
 
     <section id="view-anonymize" class="view">
       <div class="actions">
@@ -172,6 +182,7 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
       <h2 data-i18n="navSettings"></h2>
       <p class="hint" data-i18n="settingsHint"></p>
       <div id="categories" class="settings"></div>
+      <label class="lang-row desktop-only"><input type="checkbox" id="updates"> <span data-i18n="updSetting"></span></label>
       <label class="lang-row"><span data-i18n="language"></span>
         <select id="lang">
           <option value="auto" data-i18n="langAuto"></option>
@@ -188,7 +199,7 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
   <footer>
     <span class="desktop-only"><kbd>Ctrl+Alt+A</kbd> <span data-i18n="hkAnonymize"></span> &middot; <kbd>Ctrl+Alt+R</kbd> <span data-i18n="hkRestore"></span></span>
     <span class="browser-only" data-i18n="browserNote"></span>
-    <span id="version"></span>
+    <span><button type="button" id="btn-update" class="link-button" hidden></button> <span id="version"></span></span>
   </footer>
 </div>
 
@@ -1120,6 +1131,12 @@ if (typeof module !== "undefined") {
 
   const I18N = {
     en: {
+      updConsent:
+        "Check GitHub once a day for a new topomask version? Only the release number is requested: your text and mappings never leave this computer.",
+      updYes: "Check for updates",
+      updNo: "No thanks",
+      updSetting: "Check GitHub once a day for updates",
+      updAvailable: "Update available: {0}",
       language: "Language",
       langAuto: "System default",
       navAnonymize: "Anonymize",
@@ -1181,6 +1198,12 @@ if (typeof module !== "undefined") {
       stat_ip: "ipv4",
     },
     it: {
+      updConsent:
+        "Controllare una volta al giorno su GitHub se c'è una nuova versione di topomask? Viene richiesto solo il numero della release: testi e corrispondenze non lasciano mai questo computer.",
+      updYes: "Controlla gli aggiornamenti",
+      updNo: "No, grazie",
+      updSetting: "Controlla una volta al giorno su GitHub se ci sono aggiornamenti",
+      updAvailable: "Aggiornamento disponibile: {0}",
       language: "Lingua",
       langAuto: "Predefinita di sistema",
       navAnonymize: "Anonimizza",
@@ -1248,6 +1271,7 @@ if (typeof module !== "undefined") {
     keep: KEEP_DEFAULT,
     enabled: { ...ENABLED_DEFAULT },
     lang: "auto",
+    updates: null,
   };
 
   /* ---------- host backends ---------- */
@@ -1318,7 +1342,10 @@ if (typeof module !== "undefined") {
   }
 
   function persistSettings() {
-    return backend.save("settings.json", JSON.stringify({ enabled: state.enabled, lang: state.lang }));
+    return backend.save(
+      "settings.json",
+      JSON.stringify({ enabled: state.enabled, lang: state.lang, updates: state.updates }),
+    );
   }
 
   function bindEditor(id, file, key) {
@@ -1448,6 +1475,33 @@ if (typeof module !== "undefined") {
     }
   }
 
+  /* ---------- updates (desktop only; the check itself runs in the host) ---------- */
+
+  let updateVersion = null;
+
+  function renderUpdates() {
+    $("update-consent").hidden = HOST !== "desktop" || state.updates !== null;
+    $("updates").checked = state.updates === true;
+    const btn = $("btn-update");
+    btn.hidden = !updateVersion;
+    if (updateVersion) btn.textContent = t("updAvailable", updateVersion);
+  }
+
+  async function setUpdates(value) {
+    state.updates = value;
+    renderUpdates();
+    try {
+      await persistSettings();
+    } catch (e) {
+      setSettingsStatus(t("notSaved", errorText(e)), "err");
+    }
+  }
+
+  window.topomaskUpdate = (version) => {
+    updateVersion = String(version);
+    renderUpdates();
+  };
+
   window.topomaskHotkey = (action, text) => {
     try {
       if (action === "anonymize") {
@@ -1576,6 +1630,7 @@ if (typeof module !== "undefined") {
         const s = JSON.parse(files["settings.json"]);
         if (s && typeof s.enabled === "object") Object.assign(state.enabled, s.enabled);
         if (s && (s.lang === "auto" || hasOwn(I18N, s.lang))) state.lang = s.lang;
+        if (s && typeof s.updates === "boolean") state.updates = s.updates;
       } catch (_) {
         // A corrupt settings file falls back to the defaults; it is rewritten on the next change.
       }
@@ -1601,12 +1656,20 @@ if (typeof module !== "undefined") {
       setStatus(errorText(e), "err");
     }
     applyI18n();
+    renderUpdates();
+    $("btn-upd-yes").addEventListener("click", () => setUpdates(true));
+    $("btn-upd-no").addEventListener("click", () => setUpdates(false));
+    $("updates").addEventListener("change", () => setUpdates($("updates").checked));
+    $("btn-update").addEventListener("click", () => {
+      if (HOST === "desktop") window.pywebview.api.open_release();
+    });
     $("lang").value = state.lang;
     $("lang").addEventListener("change", async () => {
       state.lang = $("lang").value;
       applyI18n();
       renderSettings();
       renderMappings();
+      renderUpdates();
       try {
         await persistSettings();
         setSettingsStatus(t("saved"), "ok");

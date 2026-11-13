@@ -13,6 +13,8 @@ import os
 import sys
 import threading
 import time
+import urllib.request
+import webbrowser
 from collections.abc import Callable, Mapping
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -30,6 +32,13 @@ DESKTOP_MARKER = 'data-host="desktop"'
 ICON_COLOR = "#011934"
 READY_TIMEOUT = 15.0
 LOG_MAX_BYTES = 256 * 1024
+
+REPO_URL = "https://github.com/felicerosella/topomask"
+RELEASES_API = "https://api.github.com/repos/felicerosella/topomask/releases/latest"
+UPDATE_INTERVAL = 24 * 3600
+UPDATE_FIRST_DELAY = 30.0
+UPDATE_TIMEOUT = 10.0
+UPDATE_MAX_BYTES = 1024 * 1024
 
 log = logging.getLogger(APP_NAME)
 
@@ -141,6 +150,117 @@ def parse_result(raw: object) -> dict[str, str]:
     if not isinstance(data.get("text"), str):
         raise ValueError("unexpected result from the UI")
     return {"text": data["text"], "summary": str(data.get("summary", ""))}
+
+
+# ---------------------------------------------------------------------------
+# Update check: opt-in, desktop app only. One GET of the latest release metadata;
+# no text, mapping or identifier is sent, and nothing is downloaded or installed.
+# ---------------------------------------------------------------------------
+
+
+def parse_version(tag: str) -> tuple[int, int, int] | None:
+    parts = tag.strip().removeprefix("v").split(".")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return None
+    return int(parts[0]), int(parts[1]), int(parts[2])
+
+
+def is_newer(tag: str, current: str = __version__) -> bool:
+    latest, mine = parse_version(tag), parse_version(current)
+    return latest is not None and mine is not None and latest > mine
+
+
+def updates_enabled(storage: Storage) -> bool:
+    """True only after the user explicitly agreed in the UI."""
+    raw = storage.read("settings.json")
+    if not raw:
+        return False
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("updates") is True
+
+
+Opener = Callable[[urllib.request.Request, float], Any]
+
+
+def _urlopen(request: urllib.request.Request, timeout: float) -> Any:
+    return urllib.request.urlopen(request, timeout=timeout)  # noqa: S310  # fixed https URL
+
+
+def fetch_latest(opener: Opener = _urlopen) -> dict[str, str] | None:
+    """Return {"version", "url"} of the latest stable release, or None if it is not newer."""
+    request = urllib.request.Request(
+        RELEASES_API,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": f"{APP_NAME}/{__version__}",
+        },
+    )
+    with opener(request, UPDATE_TIMEOUT) as response:
+        if getattr(response, "status", 200) != 200:
+            raise OSError(f"unexpected HTTP status {response.status}")
+        data = json.loads(response.read(UPDATE_MAX_BYTES + 1)[:UPDATE_MAX_BYTES])
+    if not isinstance(data, dict):
+        raise ValueError("unexpected release metadata")
+    tag, url = data.get("tag_name"), data.get("html_url")
+    if not isinstance(tag, str) or not isinstance(url, str):
+        raise ValueError("unexpected release metadata")
+    if not url.startswith(f"{REPO_URL}/releases/"):
+        raise ValueError("release URL outside the project repository")
+    if data.get("draft") or data.get("prerelease") or not is_newer(tag):
+        return None
+    return {"version": tag, "url": url}
+
+
+class UpdateChecker(threading.Thread):
+    """Checks once shortly after start and then once a day, only while enabled."""
+
+    def __init__(
+        self,
+        storage: Storage,
+        on_update: Callable[[dict[str, str]], None],
+        opener: Opener = _urlopen,
+    ) -> None:
+        super().__init__(name="updates", daemon=True)
+        self.storage = storage
+        self.on_update = on_update
+        self.opener = opener
+        self.stop_event = threading.Event()
+        self.last_check = 0.0
+        self.notified: str | None = None
+
+    def check_once(self, now: float | None = None) -> dict[str, str] | None:
+        now = time.time() if now is None else now
+        if not updates_enabled(self.storage) or now - self.last_check < UPDATE_INTERVAL:
+            return None
+        self.last_check = now
+        try:
+            found = fetch_latest(self.opener)
+        except Exception as exc:
+            log.warning("update check failed: %s", type(exc).__name__)
+            return None
+        if found is None:
+            log.info("update check: up to date")
+            return None
+        if found["version"] != self.notified:
+            self.notified = found["version"]
+            log.info("update available: %s", found["version"])
+            self.on_update(found)
+        return found
+
+    def run(self) -> None:
+        if self.stop_event.wait(UPDATE_FIRST_DELAY):
+            return
+        while True:
+            self.check_once()
+            if self.stop_event.wait(3600):
+                return
+
+    def stop(self) -> None:
+        self.stop_event.set()
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +499,7 @@ class Api:
         self._storage = storage
         self._clipboard = clipboard
         self._ready = ready
+        self._release_url: str | None = None
 
     def state(self) -> dict[str, str | None]:
         return self._storage.state()
@@ -403,6 +524,13 @@ class Api:
         log.info("ui ready")
         return True
 
+    def open_release(self) -> bool:
+        """Open the release page found by the update check; JS cannot pass its own URL."""
+        if not self._release_url:
+            return False
+        webbrowser.open(self._release_url)
+        return True
+
 
 class App:
     def __init__(self, storage: Storage, html: str, start_hidden: bool) -> None:
@@ -425,7 +553,13 @@ class App:
             hidden=start_hidden,
         )
         self.window.events.closing += self._on_closing
+        self.update: dict[str, str] | None = None
         menu = pystray.Menu(
+            pystray.MenuItem(
+                lambda _item: f"Download {self.update['version']}" if self.update else "",
+                self._open_release,
+                visible=lambda _item: self.update is not None,
+            ),
             pystray.MenuItem("Open", self._show, default=True),
             pystray.MenuItem("Anonymize clipboard", lambda: self._spawn("anonymize")),
             pystray.MenuItem("Restore clipboard", lambda: self._spawn("restore")),
@@ -435,14 +569,17 @@ class App:
         )
         self.icon = pystray.Icon(APP_NAME, load_icon(64), APP_NAME, menu)
         self.hotkeys = HotkeyThread(self.clipboard, self.handle_hotkey, self._on_conflict)
+        self.updates = UpdateChecker(storage, self._on_update)
 
     def run(self) -> None:
         import webview
 
         self.icon.run_detached()
         self.hotkeys.start()
+        self.updates.start()
         log.info("started version %s", __version__)
         webview.start(private_mode=True)
+        self.updates.stop()
         self.hotkeys.stop()
         self.icon.stop()
         log.info("stopped")
@@ -452,6 +589,21 @@ class App:
             self.icon.notify(message, APP_NAME)
         except Exception as exc:
             log.warning("notification failed: %s", type(exc).__name__)
+
+    def _on_update(self, info: dict[str, str]) -> None:
+        self.update = info
+        self.api._release_url = info["url"]
+        self.icon.update_menu()
+        self.notify(f"Update available: {info['version']}. Use the tray menu to download it.")
+        if self.ui_ready.wait(READY_TIMEOUT):
+            try:
+                self.window.evaluate_js(f"topomaskUpdate({json.dumps(info['version'])})")
+            except Exception as exc:
+                log.warning("update banner failed: %s", type(exc).__name__)
+
+    def _open_release(self) -> None:
+        if self.update:
+            webbrowser.open(self.update["url"])
 
     def _spawn(self, action: str) -> None:
         threading.Thread(target=self.handle_hotkey, args=(action,), daemon=True).start()

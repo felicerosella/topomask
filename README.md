@@ -20,7 +20,7 @@ Generic PII tools replace values with random tokens, so the model can no longer 
 - **Topology preserved.** Addresses in the same real /24 land in the same fake /24 and keep their last octet. The same domain always becomes the same fake zone. Hostnames with dashes are replaced piece by piece. MAC addresses keep the vendor OUI. The model can still reason about subnets, routing and vendors.
 - **Sysadmin coverage.** `DOMAIN\user`, LDAP DNs (`CN`/`OU`/`DC`), SIDs with the RID kept, GUIDs, UNC paths, shell prompts like `[user@host dir]#`, `/etc/hosts` lines, syslog headers, `ssh`/`ping`/`dig` targets, Cisco secrets (`$9$`, `key 7`), SNMP communities, pre-shared keys, JWTs and cloud API keys.
 - **Italian personal data, checksum-validated.** Tax code (codice fiscale), VAT number (partita IVA) and IBAN (mod-97), plus phone numbers and payment cards (Luhn, only next to a keyword).
-- **Zero network.** A single HTML file with a `default-src 'none'` Content Security Policy that anyone can inspect.
+- **Zero network.** A single HTML file with a `default-src 'none'` Content Security Policy that anyone can inspect. The desktop app makes one request a day to GitHub only if you opt in to update checks.
 - **Windows desktop app.** A notification-area icon and two global hotkeys that anonymize or restore the clipboard, so it works with any chat client.
 
 ## Example
@@ -68,6 +68,10 @@ After the AI answers, **Restore** turns every fake value in its reply back into 
 Command-line options: `--tray` starts hidden in the notification area, `--debug` logs the full details of a startup failure.
 
 Copy text anywhere and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> to replace the clipboard with its anonymized version, or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> to restore it.
+
+### Update check
+
+On first start the desktop app asks whether to check GitHub once a day for a new version. If you agree, it requests the metadata of the latest release from `api.github.com` (GitHub sees your IP address and the `topomask/<version>` user agent; no text, mapping or identifier is sent). When a newer version exists, a notification and a tray menu entry open its release page; nothing is downloaded or installed automatically. You can change the choice in **Settings**. The browser version never connects anywhere: watch the repository releases on GitHub instead.
 
 Data is stored in `%APPDATA%\topomask\`. Restored text is copied with the flags that keep it out of the Windows clipboard history (<kbd>Win</kbd>+<kbd>V</kbd>) and cloud clipboard sync.
 

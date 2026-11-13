@@ -24,10 +24,12 @@ In scope:
 
 - Real values that should have been replaced but appear in the anonymized output (detection gaps, regressions).
 - Secrets that are restorable or recoverable from the output.
-- Any network access from `topomask.html` or the desktop app, any way to bypass the Content Security Policy.
+- Any network access from `topomask.html`, any way to bypass the Content Security Policy, and any network access from the desktop app other than the opt-in update check described below.
 - Script injection through processed text, terms or mapping data (the UI never uses `innerHTML` for user content).
 - Restored values leaking into the Windows clipboard history or cloud clipboard, or into `topomask.log`.
 - Supply-chain issues in the release artifacts.
+
+Update check (desktop app, opt-in): one HTTPS GET a day to `https://api.github.com/repos/felicerosella/topomask/releases/latest`, made by the Python host process, which never handles the text being anonymized beyond the clipboard hotkeys. The response is only used to compare version numbers; the release page opened from the notification must belong to this repository. Nothing is downloaded or installed automatically.
 
 Out of scope and documented as known limitations:
 
