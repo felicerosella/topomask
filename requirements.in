@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Runtime dependencies of the Windows desktop app.
+pywebview
+pystray==0.19.5
+pillow

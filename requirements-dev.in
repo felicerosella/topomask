@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Development tools (Linux/macOS).
+ruff
+mypy
+pytest
+pytest-cov
+pillow
+cyclonedx-bom
+pre-commit
