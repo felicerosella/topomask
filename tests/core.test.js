@@ -285,6 +285,42 @@ test("banners are removed", () => {
   assert.equal(res.text, "[banner removed]\nlogin ok\n");
 });
 
+test("framed login banners with text are removed as one block", () => {
+  const text = [
+    "login as: admin",
+    "################################################",
+    "#  WARNING: authorized access only.            #",
+    "#  Example Corp - all activity is monitored.   #",
+    "################################################",
+    "Last login: Thu Nov 13 10:00:00 2026",
+    "",
+  ].join("\r\n");
+  assert.equal(run(text).text, "login as: admin\r\n[banner removed]\r\nLast login: Thu Nov 13 10:00:00 2026\r\n");
+});
+
+test("box-drawing banners are removed", () => {
+  const text = "╔══════════════════════╗\n║  Welcome to node-01  ║\n║  Example Org         ║\n╚══════════════════════╝\nok\n";
+  assert.equal(run(text).text, "[banner removed]\nok\n");
+});
+
+test("tables and short separators are not mistaken for banners", () => {
+  const text = [
+    "+--------+--------+",
+    "| host   | state  |",
+    "+--------+--------+",
+    "| a      | up     |",
+    "+--------+--------+",
+    "---",
+    "key: value",
+    "",
+  ].join("\n");
+  assert.ok(run(text).text.includes("| a      | up     |"));
+});
+
+test("sshd last login lines keep the weekday", () => {
+  assert.equal(run("Last login: Thu Nov 13 10:00:00 2026").text, "Last login: Thu Nov 13 10:00:00 2026");
+});
+
 test("disabled categories are left alone", () => {
   const text = "192.0.2.1 web01.example.net";
   const res = run(text, { enabled: { ip: false } });

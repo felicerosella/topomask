@@ -392,31 +392,61 @@ function alias(ctx, fake, real) {
 
 /* ---------- 0. banners ---------- */
 
+const alnumRatio = (visible) => (visible.match(/[\p{L}\p{N}]/gu) || []).length / visible.length;
+
+// A border line: mostly symbols, long enough not to be a plain separator like "--".
+// Table rules such as "+----+----+" or "├──┼──┤" have inner junctions and are not borders.
+function isBorder(line) {
+  const visible = line.replace(/\s+/g, "");
+  if (visible.length < 8 || alnumRatio(visible) >= 0.35) return false;
+  return !/[+┬┼┴╦╬╩]/u.test(visible.slice(1, -1));
+}
+
+// A line inside a frame: starts and ends with a non-alphanumeric border character.
+function isFramed(line) {
+  const t = line.trim();
+  return t.length >= 2 && /^[^\p{L}\p{N}\s]/u.test(t) && /[^\p{L}\p{N}\s.,;:!?)"']$/u.test(t);
+}
+
+// Removes ASCII-art banners and framed notices (login banners, MOTD), which often name
+// the organization. Two shapes are recognized:
+// - 3+ consecutive lines made mostly of symbols (figlet-style art);
+// - a block that opens and closes with a border line, with every line in between framed.
 function stepBanner(ctx, text) {
   const lines = text.split(/(?<=\n)/);
-  const out = [];
-  let run = [];
-  const flush = () => {
-    if (run.length >= 3) {
-      const eol = (run[run.length - 1].match(/\r?\n$/) || [""])[0];
-      out.push("[banner removed]" + eol);
-      ctx.stats.banner = (ctx.stats.banner || 0) + 1;
-    } else {
-      out.push(...run);
-    }
-    run = [];
-  };
-  for (const line of lines) {
+  const eolOf = (line) => (line.match(/\r?\n$/) || [""])[0];
+  const symbolic = (line) => {
     const visible = line.replace(/\s+/g, "");
-    const alnum = (visible.match(/[\p{L}\p{N}]/gu) || []).length;
-    if (visible.length > 0 && alnum / visible.length < 0.35) {
-      run.push(line);
-    } else {
-      flush();
-      out.push(line);
+    return visible.length > 0 && alnumRatio(visible) < 0.35;
+  };
+  const remove = new Array(lines.length).fill(false);
+  for (let i = 0; i < lines.length; i++) {
+    if (!isBorder(lines[i])) continue;
+    let j = i + 1;
+    while (j < lines.length && j - i <= 60 && !isBorder(lines[j]) && isFramed(lines[j])) j++;
+    if (j < lines.length && j - i >= 2 && isBorder(lines[j])) {
+      for (let k = i; k <= j; k++) remove[k] = true;
+      i = j;
     }
   }
-  flush();
+  for (let i = 0; i < lines.length; ) {
+    let j = i;
+    while (j < lines.length && symbolic(lines[j])) j++;
+    if (j - i >= 3) for (let k = i; k < j; k++) remove[k] = true;
+    i = j > i ? j : i + 1;
+  }
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!remove[i]) {
+      out.push(lines[i]);
+      continue;
+    }
+    let j = i;
+    while (j + 1 < lines.length && remove[j + 1]) j++;
+    out.push("[banner removed]" + eolOf(lines[j]));
+    ctx.stats.banner = (ctx.stats.banner || 0) + 1;
+    i = j;
+  }
   return out.join("");
 }
 
@@ -800,6 +830,7 @@ function stepUser(ctx, text) {
     /(?<![\w.-])((?:[\w-]*[_-])?(?:user(?:name|_?id)?|login|logon|uid|owner|account_?name|samaccountname|upn|principal))(["']?\s*[:=]\s*["']?)([^\s"',;()\]}&]+)/gi,
     (m, k, sep, value) => {
       if (/[\\/=]/.test(value) || isPlaceholder(value)) return m;
+      if (/^(?:mon|tue|wed|thu|fri|sat|sun)$/i.test(value)) return m;
       const at = value.indexOf("@");
       if (at > 0) return k + sep + userTok(ctx, value.slice(0, at)) + "@" + hostAny(ctx, value.slice(at + 1));
       return k + sep + userTok(ctx, value);
