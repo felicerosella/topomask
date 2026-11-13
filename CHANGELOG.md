@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.2.1] - 2026-11-13
 
-Version 0.2.0 was tagged but never published: its installer did not match the attested build. 0.2.1 contains all the 0.2.0 changes listed below plus these fixes.
+0.2.1 replaces 0.2.0, which is yanked: its installer was a CI test build without a provenance attestation, built with an unpinned Inno Setup, and it bundles Pillow 12.3.0. The code is the same, so 0.2.0 users are not at risk beyond the Pillow advisories, but they should upgrade. 0.2.1 contains all the 0.2.0 changes listed below plus these fixes.
 
 ### Security
 
@@ -23,7 +23,7 @@ Version 0.2.0 was tagged but never published: its installer did not match the at
 
 - Building from source and the development tools now require Python 3.11 or later (the app bundles its own Python, so users are not affected).
 
-## [0.2.0] - 2026-11-13 [not published]
+## [0.2.0] - 2026-11-13 [YANKED]
 
 ### Added
 
@@ -54,5 +54,6 @@ Version 0.2.0 was tagged but never published: its installer did not match the at
 - Release artifacts with SHA-256 checksums, CycloneDX SBOM and build provenance attestation.
 
 [Unreleased]: https://github.com/felicerosella/topomask/compare/v0.2.1...HEAD
-[0.2.1]: https://github.com/felicerosella/topomask/compare/v0.1.0...v0.2.1
+[0.2.1]: https://github.com/felicerosella/topomask/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/felicerosella/topomask/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/felicerosella/topomask/releases/tag/v0.1.0
