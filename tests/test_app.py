@@ -21,7 +21,20 @@ def test_module_imports_without_gui_dependencies() -> None:
 
 def test_storage_rejects_names_outside_whitelist(tmp_path: Path) -> None:
     storage = topomask.Storage(tmp_path)
-    for name in ("../x", "map.json.tmp", "topomask.log", "", "..\\map.json"):
+    for name in (
+        "../x",
+        "map.json",
+        "map.json.tmp",
+        "topomask.log",
+        "",
+        "..\\map.json",
+        "profiles/../map.json",
+        "profiles/a/b/map.json",
+        "profiles/con/map.json",
+        "profiles/x./map.json",
+        "profiles/default/settings.json",
+        "profiles/default/../../x/map.json",
+    ):
         with pytest.raises(ValueError):
             storage.write(name, "x")
         with pytest.raises(ValueError):
@@ -31,15 +44,18 @@ def test_storage_rejects_names_outside_whitelist(tmp_path: Path) -> None:
 
 def test_storage_round_trip_and_atomic_write(tmp_path: Path) -> None:
     storage = topomask.Storage(tmp_path / "data")
-    assert storage.read("terms.txt") is None
-    storage.write("terms.txt", "Contoso=COMPANY_A\r\n")
-    storage.write("terms.txt", "Fabrikam\n")
-    assert storage.read("terms.txt") == "Fabrikam\n"
-    assert sorted(p.name for p in (tmp_path / "data").iterdir()) == ["terms.txt"]
+    name = "profiles/Customer B/terms.txt"
+    assert storage.read(name) is None
+    storage.write(name, "Contoso=COMPANY_A\r\n")
+    storage.write(name, "Fabrikam\n")
+    assert storage.read(name) == "Fabrikam\n"
+    folder = tmp_path / "data" / "profiles" / "Customer B"
+    assert sorted(p.name for p in folder.iterdir()) == ["terms.txt"]
+    storage.write("settings.json", "{}")
     state = storage.state()
-    assert set(state) == topomask.DATA_FILES
-    assert state["terms.txt"] == "Fabrikam\n"
-    assert state["map.json"] is None
+    assert set(state) == topomask.ROOT_FILES
+    assert state["settings.json"] == "{}"
+    assert state["profiles.json"] is None
 
 
 def test_load_html_switches_to_desktop_mode(tmp_path: Path) -> None:
@@ -341,3 +357,48 @@ def test_api_set_hotkeys(tmp_path: Path) -> None:
     assert "error" in api.set_hotkeys({"anonymize": "Shift+Q", "restore": None})
     assert "error" in api.set_hotkeys({"anonymize": "Ctrl+Alt+Q", "restore": "Ctrl+Alt+Q"})
     assert "error" in api.set_hotkeys(["not", "a", "dict"])
+
+
+def test_valid_profile_names() -> None:
+    for ok in ("default", "Customer B", "acme-2026", "team_ops", "v1.2", "A"):
+        assert topomask.valid_profile(ok), ok
+    for bad in ("", " x", "x ", "x.", "-x", "../x", "a/b", "a\\b", "con", "NUL.txt", "lpt1", "x" * 41, 3, None):
+        assert not topomask.valid_profile(bad), bad
+
+
+def test_migrate_legacy_moves_files_into_default_profile(tmp_path: Path) -> None:
+    (tmp_path / "map.json").write_text('{"v": 1}', encoding="utf-8")
+    (tmp_path / "terms.txt").write_text("Contoso", encoding="utf-8")
+    (tmp_path / "settings.json").write_text("{}", encoding="utf-8")
+    storage = topomask.Storage(tmp_path)
+    assert storage.migrate_legacy() is True
+    assert storage.read("profiles/default/map.json") == '{"v": 1}'
+    assert storage.read("profiles/default/terms.txt") == "Contoso"
+    assert not (tmp_path / "map.json").exists()
+    assert (tmp_path / "settings.json").exists()
+    assert json.loads(storage.read("profiles.json") or "") == {"active": "default", "profiles": ["default"]}
+    assert storage.migrate_legacy() is False
+
+
+def test_migrate_legacy_never_overwrites_profile_data(tmp_path: Path) -> None:
+    storage = topomask.Storage(tmp_path)
+    storage.write("profiles/default/map.json", "new")
+    storage.write("profiles.json", '{"active": "default", "profiles": ["default", "x"]}')
+    (tmp_path / "map.json").write_text("old", encoding="utf-8")
+    storage.migrate_legacy()
+    assert storage.read("profiles/default/map.json") == "new"
+    assert (tmp_path / "map.json.old").read_text(encoding="utf-8") == "old"
+    assert "x" in (storage.read("profiles.json") or "")
+
+
+def test_delete_profile(tmp_path: Path) -> None:
+    storage = topomask.Storage(tmp_path)
+    storage.write("profiles/old/map.json", "{}")
+    storage.write("profiles/keep/map.json", "{}")
+    api = topomask.Api(storage, object(), threading.Event())
+    assert api.read("profiles/old/map.json") == "{}"
+    assert api.delete_profile("old") is True
+    assert not (tmp_path / "profiles" / "old").exists()
+    assert (tmp_path / "profiles" / "keep" / "map.json").exists()
+    with pytest.raises(ValueError):
+        api.delete_profile("../keep")

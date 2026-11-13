@@ -10,6 +10,8 @@ import argparse
 import json
 import logging
 import os
+import re
+import shutil
 import sys
 import threading
 import time
@@ -26,7 +28,13 @@ if TYPE_CHECKING:
 __version__ = "0.1.0"
 
 APP_NAME = "topomask"
-DATA_FILES = frozenset({"map.json", "terms.txt", "keep.txt", "settings.json"})
+ROOT_FILES = frozenset({"settings.json", "profiles.json"})
+PROFILE_FILES = frozenset({"map.json", "terms.txt", "keep.txt"})
+DEFAULT_PROFILE = "default"
+PROFILE_NAME = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,38}[A-Za-z0-9_-])?")
+WINDOWS_RESERVED = frozenset(
+    {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+)
 HOST_MARKER = 'data-host="browser"'
 DESKTOP_MARKER = 'data-host="desktop"'
 ICON_COLOR = "#011934"
@@ -67,17 +75,33 @@ def data_dir(env: Mapping[str, str] | None = None) -> Path:
     return Path(appdata) / APP_NAME
 
 
+def valid_profile(name: object) -> bool:
+    """Profile names become folder names, so only portable, non-reserved names are allowed."""
+    return (
+        isinstance(name, str)
+        and PROFILE_NAME.fullmatch(name) is not None
+        and name.split(".")[0].strip().lower() not in WINDOWS_RESERVED
+    )
+
+
 class Storage:
-    """Whitelisted, atomically written text files in the data folder."""
+    """Whitelisted, atomically written text files in the data folder.
+
+    Layout: settings.json and profiles.json at the root, and one folder per profile
+    under profiles/ holding its map.json, terms.txt and keep.txt.
+    """
 
     def __init__(self, root: Path) -> None:
         self.root = root
         self._lock = threading.Lock()
 
     def _path(self, name: str) -> Path:
-        if name not in DATA_FILES:
-            raise ValueError(f"unknown data file: {name!r}")
-        return self.root / name
+        if name in ROOT_FILES:
+            return self.root / name
+        parts = name.split("/") if isinstance(name, str) else []
+        if len(parts) == 3 and parts[0] == "profiles" and valid_profile(parts[1]) and parts[2] in PROFILE_FILES:
+            return self.root / "profiles" / parts[1] / parts[2]
+        raise ValueError(f"unknown data file: {name!r}")
 
     def read(self, name: str) -> str | None:
         path = self._path(name)
@@ -91,15 +115,40 @@ class Storage:
         path = self._path(name)
         tmp = path.with_name(path.name + ".tmp")
         with self._lock:
-            self.root.mkdir(parents=True, exist_ok=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
             with tmp.open("w", encoding="utf-8", newline="") as fh:
                 fh.write(text)
                 fh.flush()
                 os.fsync(fh.fileno())
             tmp.replace(path)
 
+    def delete_profile(self, profile: str) -> None:
+        if not valid_profile(profile):
+            raise ValueError(f"invalid profile name: {profile!r}")
+        with self._lock:
+            shutil.rmtree(self.root / "profiles" / profile, ignore_errors=True)
+
     def state(self) -> dict[str, str | None]:
-        return {name: self.read(name) for name in sorted(DATA_FILES)}
+        return {name: self.read(name) for name in sorted(ROOT_FILES)}
+
+    def migrate_legacy(self) -> bool:
+        """Move the single-profile files of version 0.1.0 into the default profile."""
+        legacy = [self.root / name for name in sorted(PROFILE_FILES) if (self.root / name).is_file()]
+        if not legacy:
+            return False
+        target = self.root / "profiles" / DEFAULT_PROFILE
+        with self._lock:
+            target.mkdir(parents=True, exist_ok=True)
+            for path in legacy:
+                dest = target / path.name
+                if dest.exists():
+                    path.replace(path.with_name(path.name + ".old"))
+                else:
+                    path.replace(dest)
+        if self.read("profiles.json") is None:
+            self.write("profiles.json", json.dumps({"active": DEFAULT_PROFILE, "profiles": [DEFAULT_PROFILE]}))
+        log.info("migrated data to the default profile")
+        return True
 
 
 def setup_logging(folder: Path, debug: bool = False) -> None:
@@ -646,6 +695,14 @@ class Api:
     def state(self) -> dict[str, str | None]:
         return self._storage.state()
 
+    def read(self, name: str) -> str | None:
+        return self._storage.read(name)
+
+    def delete_profile(self, profile: str) -> bool:
+        self._storage.delete_profile(profile)
+        log.info("profile deleted")
+        return True
+
     def save(self, name: str, text: str) -> bool:
         try:
             self._storage.write(name, text)
@@ -872,6 +929,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         storage = Storage(data_dir())
         setup_logging(storage.root, debug=args.debug)
+        storage.migrate_legacy()
         html = load_html(resource_path("topomask.html"))
     except (OSError, RuntimeError) as exc:
         message_box(f"{APP_NAME} could not start: {exc}")
