@@ -11,7 +11,7 @@ Thanks for your interest in topomask. Bug reports, detection gaps and pull reque
 
 ## Setup
 
-Requirements: Python 3.10 or later, Node.js 22 or later, git. The desktop app itself only runs on Windows, but the core, the browser UI and all tests run on Linux and macOS.
+Requirements: Python 3.11 or later, Node.js 22 or later, git. The desktop app itself only runs on Windows, but the core, the browser UI and all tests run on Linux and macOS.
 
 ```sh
 python3 -m venv .venv
@@ -47,9 +47,9 @@ To try the UI, open `src/topomask.html` in a browser.
 Runtime and build dependencies are locked with hashes. To change them, edit the `.in` file and regenerate the lock with [uv](https://github.com/astral-sh/uv):
 
 ```sh
-uv pip compile requirements.in --python-platform windows --python-version 3.10 --generate-hashes -o requirements.txt
-uv pip compile requirements-build.in --python-platform windows --python-version 3.10 --generate-hashes -o requirements-build.txt
-uv pip compile requirements-dev.in --python-platform linux --python-version 3.10 --generate-hashes -o requirements-dev.txt
+uv pip compile requirements.in --python-platform windows --python-version 3.11 --generate-hashes -o requirements.txt
+uv pip compile requirements-build.in --python-platform windows --python-version 3.11 --generate-hashes -o requirements-build.txt
+uv pip compile requirements-dev.in --python-platform linux --python-version 3.11 --generate-hashes -o requirements-dev.txt
 ```
 
 Explain in the pull request why a new dependency is needed and check that its license is compatible with Apache-2.0.

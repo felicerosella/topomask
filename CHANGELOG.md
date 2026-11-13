@@ -6,7 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-11-13
+## [0.2.1] - 2026-11-13
+
+Version 0.2.0 was tagged but never published: its installer did not match the attested build. 0.2.1 contains all the 0.2.0 changes listed below plus these fixes.
+
+### Security
+
+- Bundled Pillow updated to 13.0.0, fixing the advisories published for 12.3.0 and earlier. topomask only loads its own icon, so it was not exposed to malicious images, but no release ships known-vulnerable components.
+
+### Fixed
+
+- Release pipeline: the published installer is the attested build; every release file is verified against its provenance attestation before publishing.
+- The installer is always built with the pinned, checksum-verified Inno Setup, never with a version preinstalled on the build machine.
+
+### Changed
+
+- Building from source and the development tools now require Python 3.11 or later (the app bundles its own Python, so users are not affected).
+
+## [0.2.0] - 2026-11-13 [not published]
 
 ### Added
 
@@ -36,6 +53,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--tray` and `--debug` command-line options.
 - Release artifacts with SHA-256 checksums, CycloneDX SBOM and build provenance attestation.
 
-[Unreleased]: https://github.com/felicerosella/topomask/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/felicerosella/topomask/compare/v0.1.0...v0.2.0
+[Unreleased]: https://github.com/felicerosella/topomask/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/felicerosella/topomask/compare/v0.1.0...v0.2.1
 [0.1.0]: https://github.com/felicerosella/topomask/releases/tag/v0.1.0

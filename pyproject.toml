@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 [project]
 name = "topomask"
-version = "0.2.0"
+version = "0.2.1"
 description = "Reversible, topology-preserving anonymizer for logs and configs before you paste them into an AI."
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
@@ -20,7 +20,7 @@ ignore = ["S603"]
 "tests/*" = ["S101", "S108"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 warn_unreachable = true
 files = ["src", "scripts"]
