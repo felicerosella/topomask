@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+title = "topomask gitleaks config"
+
+[extend]
+useDefault = true
+
+# The core tests and the detection rules contain synthetic secrets by design.
+[[allowlists]]
+description = "synthetic secrets in tests and detection patterns"
+paths = ['''^tests/''']
