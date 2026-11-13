@@ -69,6 +69,8 @@ Command-line options: `--tray` starts hidden in the notification area, `--debug`
 
 Copy text anywhere and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> to replace the clipboard with its anonymized version, or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> to restore it.
 
+The shortcuts can be changed in **Settings → Keyboard shortcuts**: click a shortcut and press the new combination (Ctrl, Alt or Win plus a letter, a digit or F1–F24). Changes apply immediately; if another application already uses the combination, the previous shortcut stays active. Backspace turns a shortcut off. On layouts with AltGr, avoid Ctrl+Alt combinations that type characters (Windows treats AltGr as Ctrl+Alt).
+
 ### Update check
 
 On first start the desktop app asks whether to check GitHub once a day for a new version. If you agree, it requests the metadata of the latest release from `api.github.com` (GitHub sees your IP address and the `topomask/<version>` user agent; no text, mapping or identifier is sent). When a newer version exists, a notification and a tray menu entry open its release page; nothing is downloaded or installed automatically. You can change the choice in **Settings**. The browser version never connects anywhere: watch the repository releases on GitHub instead.

@@ -227,3 +227,117 @@ def test_open_release_only_opens_the_checked_url(monkeypatch: pytest.MonkeyPatch
     api._release_url = f"{topomask.REPO_URL}/releases/tag/v99.0.0"
     assert api.open_release() is True
     assert opened == [f"{topomask.REPO_URL}/releases/tag/v99.0.0"]
+
+
+@pytest.mark.parametrize(
+    ("text", "mods", "vk", "canonical"),
+    [
+        ("Ctrl+Alt+A", topomask.MOD_CONTROL | topomask.MOD_ALT, 0x41, "Ctrl+Alt+A"),
+        ("alt + ctrl + r", topomask.MOD_CONTROL | topomask.MOD_ALT, 0x52, "Ctrl+Alt+R"),
+        ("Win+Shift+9", topomask.MOD_WIN | topomask.MOD_SHIFT, 0x39, "Shift+Win+9"),
+        ("Ctrl+F12", topomask.MOD_CONTROL, 0x7B, "Ctrl+F12"),
+        ("Alt+f1", topomask.MOD_ALT, 0x70, "Alt+F1"),
+    ],
+)
+def test_parse_and_format_hotkey(text: str, mods: int, vk: int, canonical: str) -> None:
+    assert topomask.parse_hotkey(text) == (mods, vk)
+    assert topomask.normalize_hotkey(text) == canonical
+
+
+@pytest.mark.parametrize(
+    "text", ["A", "Shift+A", "Ctrl+Ctrl+A", "Ctrl+Hyper+A", "Ctrl+Alt+", "Ctrl+Alt+Enter", "Ctrl+F25", "Ctrl+Alt+è"]
+)
+def test_parse_hotkey_rejects_invalid(text: str) -> None:
+    with pytest.raises(ValueError):
+        topomask.parse_hotkey(text)
+
+
+def test_validate_hotkeys() -> None:
+    assert topomask.validate_hotkeys({"anonymize": "alt+ctrl+a", "restore": None}) == {
+        "anonymize": "Ctrl+Alt+A",
+        "restore": None,
+    }
+    with pytest.raises(ValueError, match="same shortcut"):
+        topomask.validate_hotkeys({"anonymize": "Ctrl+Alt+A", "restore": "Alt+Ctrl+A"})
+
+
+def test_hotkeys_from_settings(tmp_path: Path) -> None:
+    storage = topomask.Storage(tmp_path)
+    assert topomask.hotkeys_from_settings(storage) == topomask.DEFAULT_HOTKEYS
+    storage.write("settings.json", json.dumps({"hotkeys": {"restore": "Ctrl+Shift+F9"}}))
+    assert topomask.hotkeys_from_settings(storage) == {"anonymize": "Ctrl+Alt+A", "restore": "Ctrl+Shift+F9"}
+    storage.write("settings.json", json.dumps({"hotkeys": {"anonymize": None, "restore": "Ctrl+Alt+R"}}))
+    assert topomask.hotkeys_from_settings(storage)["anonymize"] is None
+    storage.write("settings.json", json.dumps({"hotkeys": {"anonymize": "Shift+A"}}))
+    assert topomask.hotkeys_from_settings(storage) == topomask.DEFAULT_HOTKEYS
+    storage.write("settings.json", "[]")
+    assert topomask.hotkeys_from_settings(storage) == topomask.DEFAULT_HOTKEYS
+
+
+class FakeWin32:
+    def __init__(self, taken: set[tuple[int, int]] | None = None) -> None:
+        self.taken = taken or set()
+        self.registered: dict[int, tuple[int, int]] = {}
+
+    def register(self, hk_id: int, mods: int, vk: int) -> bool:
+        combo = (mods & ~topomask.MOD_NOREPEAT, vk)
+        if combo in self.taken or hk_id in self.registered:
+            return False
+        self.registered[hk_id] = combo
+        return True
+
+    def unregister(self, hk_id: int) -> None:
+        self.registered.pop(hk_id, None)
+
+
+def test_registry_applies_and_replaces_shortcuts() -> None:
+    win = FakeWin32()
+    reg = topomask.HotkeyRegistry(win.register, win.unregister)
+    result = reg.apply(topomask.DEFAULT_HOTKEYS)
+    assert result["anonymize"] == {"hotkey": "Ctrl+Alt+A", "error": None}
+    assert len(win.registered) == 2
+    reg.apply({"anonymize": "Ctrl+Alt+A", "restore": "Ctrl+F9"})
+    assert win.registered[2] == (topomask.MOD_CONTROL, 0x78)
+    reg.apply({"anonymize": None, "restore": "Ctrl+F9"})
+    assert 1 not in win.registered
+    assert reg.active == {"anonymize": None, "restore": "Ctrl+F9"}
+
+
+def test_registry_keeps_previous_shortcut_when_new_one_is_taken() -> None:
+    win = FakeWin32(taken={(topomask.MOD_CONTROL | topomask.MOD_ALT, ord("T"))})
+    reg = topomask.HotkeyRegistry(win.register, win.unregister)
+    reg.apply(topomask.DEFAULT_HOTKEYS)
+    result = reg.apply({"anonymize": "Ctrl+Alt+T", "restore": "Ctrl+Alt+R"})
+    assert result["anonymize"] == {"hotkey": "Ctrl+Alt+A", "error": "in_use"}
+    assert reg.active["anonymize"] == "Ctrl+Alt+A"
+    assert win.registered[1] == (topomask.MOD_CONTROL | topomask.MOD_ALT, ord("A"))
+
+
+def test_registry_reports_taken_shortcut_at_startup() -> None:
+    win = FakeWin32(taken={(topomask.MOD_CONTROL | topomask.MOD_ALT, ord("A"))})
+    reg = topomask.HotkeyRegistry(win.register, win.unregister)
+    result = reg.apply(topomask.DEFAULT_HOTKEYS)
+    assert result["anonymize"] == {"hotkey": None, "error": "in_use"}
+    assert result["restore"]["error"] is None
+
+
+class FakeHotkeyThread:
+    def __init__(self) -> None:
+        win = FakeWin32()
+        self.registry = topomask.HotkeyRegistry(win.register, win.unregister)
+        self.registry.apply(topomask.DEFAULT_HOTKEYS)
+
+    def update(self, wanted: dict[str, str | None]) -> dict[str, dict[str, str | None]]:
+        return self.registry.apply(wanted)
+
+
+def test_api_set_hotkeys(tmp_path: Path) -> None:
+    api = topomask.Api(topomask.Storage(tmp_path), object(), threading.Event())
+    assert "error" in api.set_hotkeys({"anonymize": "Ctrl+Alt+A"})
+    api._hotkeys = FakeHotkeyThread()
+    assert api.hotkeys()["active"] == topomask.DEFAULT_HOTKEYS
+    reply = api.set_hotkeys({"anonymize": "alt+ctrl+q", "restore": "Ctrl+Alt+R"})
+    assert reply["result"]["anonymize"] == {"hotkey": "Ctrl+Alt+Q", "error": None}
+    assert "error" in api.set_hotkeys({"anonymize": "Shift+Q", "restore": None})
+    assert "error" in api.set_hotkeys({"anonymize": "Ctrl+Alt+Q", "restore": "Ctrl+Alt+Q"})
+    assert "error" in api.set_hotkeys(["not", "a", "dict"])

@@ -99,6 +99,11 @@ th { font-family: var(--sans); font-weight: 600; position: sticky; top: 0; backg
 .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 16px; }
 .settings label, .lang-row { display: flex; gap: 8px; align-items: center; }
 select { font: inherit; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+.hotkeys { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+.hotkeys legend { font-weight: 600; padding: 0 4px; }
+.hotkey-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+button.hotkey { font-family: var(--mono); min-width: 170px; }
+button.hotkey.recording { border-color: var(--accent); outline: 2px solid var(--accent); }
 kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
 @media (max-width: 760px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
@@ -182,6 +187,22 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
       <h2 data-i18n="navSettings"></h2>
       <p class="hint" data-i18n="settingsHint"></p>
       <div id="categories" class="settings"></div>
+      <fieldset class="hotkeys desktop-only">
+        <legend data-i18n="hkTitle"></legend>
+        <p class="hint" data-i18n="hkHint"></p>
+        <div class="hotkey-row">
+          <span data-i18n="hkAnonymizeLabel"></span>
+          <button type="button" class="btn hotkey" data-action="anonymize"></button>
+        </div>
+        <div class="hotkey-row">
+          <span data-i18n="hkRestoreLabel"></span>
+          <button type="button" class="btn hotkey" data-action="restore"></button>
+        </div>
+        <div class="actions">
+          <button type="button" id="btn-hk-defaults" class="btn" data-i18n="hkDefaults"></button>
+          <span id="hotkeys-status" class="status" role="status"></span>
+        </div>
+      </fieldset>
       <label class="lang-row desktop-only"><input type="checkbox" id="updates"> <span data-i18n="updSetting"></span></label>
       <label class="lang-row"><span data-i18n="language"></span>
         <select id="lang">
@@ -197,7 +218,7 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
     </section>
   </main>
   <footer>
-    <span class="desktop-only"><kbd>Ctrl+Alt+A</kbd> <span data-i18n="hkAnonymize"></span> &middot; <kbd>Ctrl+Alt+R</kbd> <span data-i18n="hkRestore"></span></span>
+    <span class="desktop-only" id="hk-footer"></span>
     <span class="browser-only" data-i18n="browserNote"></span>
     <span><button type="button" id="btn-update" class="link-button" hidden></button> <span id="version"></span></span>
   </footer>
@@ -1174,6 +1195,16 @@ if (typeof module !== "undefined") {
       resetDone: "Map reset.",
       mapInvalid: "The saved map could not be loaded ({0}). Anonymize is disabled until you reset the map in Settings.",
       hkAnonymize: "anonymize clipboard",
+      hkTitle: "Keyboard shortcuts",
+      hkHint: "Click a shortcut, then press the new combination: Ctrl, Alt or Win plus a letter, a digit or F1-F24. Esc cancels, Backspace turns the shortcut off. Avoid Ctrl+Alt combinations that type characters on your keyboard layout (AltGr).",
+      hkAnonymizeLabel: "Anonymize clipboard",
+      hkRestoreLabel: "Restore clipboard",
+      hkDefaults: "Restore defaults",
+      hkPress: "Press keys…",
+      hkOff: "Off",
+      hkSaved: "Shortcuts updated.",
+      hkInUse: "{0} is already used by another application; the previous shortcut is still active.",
+      hkNeedModifier: "Use Ctrl, Alt or Win together with the key.",
       hkRestore: "restore clipboard",
       browserNote: "Data stays in this browser.",
       cat_banner: "ASCII banners",
@@ -1241,6 +1272,16 @@ if (typeof module !== "undefined") {
       resetDone: "Mappa azzerata.",
       mapInvalid: "Impossibile caricare la mappa salvata ({0}). Anonimizza è disattivato finché non azzeri la mappa da Impostazioni.",
       hkAnonymize: "anonimizza appunti",
+      hkTitle: "Scorciatoie da tastiera",
+      hkHint: "Clicca una scorciatoia e premi la nuova combinazione: Ctrl, Alt o Win più una lettera, una cifra o F1-F24. Esc annulla, Backspace disattiva la scorciatoia. Evita le combinazioni Ctrl+Alt che sul tuo layout scrivono caratteri (AltGr).",
+      hkAnonymizeLabel: "Anonimizza appunti",
+      hkRestoreLabel: "Ripristina appunti",
+      hkDefaults: "Ripristina predefinite",
+      hkPress: "Premi i tasti…",
+      hkOff: "Disattivata",
+      hkSaved: "Scorciatoie aggiornate.",
+      hkInUse: "{0} è già usata da un'altra applicazione; resta attiva la scorciatoia precedente.",
+      hkNeedModifier: "Usa Ctrl, Alt o Win insieme al tasto.",
       hkRestore: "ripristina appunti",
       browserNote: "I dati restano in questo browser.",
       cat_banner: "Banner ASCII",
@@ -1272,6 +1313,7 @@ if (typeof module !== "undefined") {
     enabled: { ...ENABLED_DEFAULT },
     lang: "auto",
     updates: null,
+    hotkeys: { anonymize: "Ctrl+Alt+A", restore: "Ctrl+Alt+R" },
   };
 
   /* ---------- host backends ---------- */
@@ -1344,7 +1386,7 @@ if (typeof module !== "undefined") {
   function persistSettings() {
     return backend.save(
       "settings.json",
-      JSON.stringify({ enabled: state.enabled, lang: state.lang, updates: state.updates }),
+      JSON.stringify({ enabled: state.enabled, lang: state.lang, updates: state.updates, hotkeys: state.hotkeys }),
     );
   }
 
@@ -1497,6 +1539,124 @@ if (typeof module !== "undefined") {
     }
   }
 
+  /* ---------- keyboard shortcuts (desktop only; registered by the host) ---------- */
+
+  const HK_ACTIONS = ["anonymize", "restore"];
+  let hkDefaults = { anonymize: "Ctrl+Alt+A", restore: "Ctrl+Alt+R" };
+  let recording = null;
+
+  function comboFromEvent(ev) {
+    let key = null;
+    let m;
+    if ((m = /^Key([A-Z])$/.exec(ev.code))) key = m[1];
+    else if ((m = /^Digit([0-9])$/.exec(ev.code))) key = m[1];
+    else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(ev.code)) key = ev.code;
+    if (!key) return null;
+    const parts = [];
+    if (ev.ctrlKey) parts.push("Ctrl");
+    if (ev.altKey) parts.push("Alt");
+    if (ev.shiftKey) parts.push("Shift");
+    if (ev.metaKey) parts.push("Win");
+    if (!ev.ctrlKey && !ev.altKey && !ev.metaKey) return "";
+    return [...parts, key].join("+");
+  }
+
+  function setHotkeyStatus(text, cls) {
+    const el = $("hotkeys-status");
+    el.textContent = text;
+    el.className = `status ${cls || ""}`;
+  }
+
+  function renderHotkeys() {
+    for (const btn of document.querySelectorAll("button.hotkey")) {
+      const action = btn.dataset.action;
+      btn.classList.toggle("recording", recording === action);
+      btn.textContent = recording === action ? t("hkPress") : state.hotkeys[action] || t("hkOff");
+    }
+    const footer = $("hk-footer");
+    footer.replaceChildren();
+    for (const action of HK_ACTIONS) {
+      const combo = state.hotkeys[action];
+      if (!combo) continue;
+      if (footer.childNodes.length) footer.append(document.createTextNode(" · "));
+      const kbd = document.createElement("kbd");
+      kbd.textContent = combo;
+      footer.append(kbd, document.createTextNode(` ${t(action === "anonymize" ? "hkAnonymize" : "hkRestore")}`));
+    }
+  }
+
+  async function applyHotkeys(wanted) {
+    let reply;
+    try {
+      reply = await window.pywebview.api.set_hotkeys(wanted);
+    } catch (e) {
+      return setHotkeyStatus(errorText(e), "err");
+    }
+    if (reply.error) return setHotkeyStatus(reply.error, "err");
+    const taken = [];
+    for (const action of HK_ACTIONS) {
+      const outcome = reply.result[action];
+      state.hotkeys[action] = outcome.hotkey;
+      if (outcome.error) taken.push(wanted[action]);
+    }
+    renderHotkeys();
+    try {
+      await persistSettings();
+    } catch (e) {
+      return setHotkeyStatus(t("notSaved", errorText(e)), "err");
+    }
+    if (taken.length) setHotkeyStatus(t("hkInUse", taken.join(", ")), "err");
+    else setHotkeyStatus(t("hkSaved"), "ok");
+  }
+
+  function onHotkeyKeydown(ev) {
+    if (!recording) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const action = recording;
+    if (ev.key === "Escape") {
+      recording = null;
+      return renderHotkeys();
+    }
+    if ((ev.key === "Backspace" || ev.key === "Delete") && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+      recording = null;
+      return applyHotkeys({ ...state.hotkeys, [action]: null });
+    }
+    const combo = comboFromEvent(ev);
+    if (combo === null) return;
+    if (combo === "") return setHotkeyStatus(t("hkNeedModifier"), "err");
+    recording = null;
+    applyHotkeys({ ...state.hotkeys, [action]: combo });
+  }
+
+  async function initHotkeys() {
+    for (const btn of document.querySelectorAll("button.hotkey")) {
+      btn.addEventListener("click", () => {
+        recording = recording === btn.dataset.action ? null : btn.dataset.action;
+        setHotkeyStatus("");
+        renderHotkeys();
+      });
+      btn.addEventListener("blur", () => {
+        if (recording === btn.dataset.action) {
+          recording = null;
+          renderHotkeys();
+        }
+      });
+    }
+    document.addEventListener("keydown", onHotkeyKeydown, true);
+    $("btn-hk-defaults").addEventListener("click", () => applyHotkeys({ ...hkDefaults }));
+    if (HOST === "desktop") {
+      try {
+        const info = await window.pywebview.api.hotkeys();
+        hkDefaults = info.defaults;
+        state.hotkeys = info.active;
+      } catch (_) {
+        // Keep the saved values; the host reports registration problems through notifications.
+      }
+    }
+    renderHotkeys();
+  }
+
   window.topomaskUpdate = (version) => {
     updateVersion = String(version);
     renderUpdates();
@@ -1631,6 +1791,11 @@ if (typeof module !== "undefined") {
         if (s && typeof s.enabled === "object") Object.assign(state.enabled, s.enabled);
         if (s && (s.lang === "auto" || hasOwn(I18N, s.lang))) state.lang = s.lang;
         if (s && typeof s.updates === "boolean") state.updates = s.updates;
+        if (s && s.hotkeys && typeof s.hotkeys === "object") {
+          for (const a of ["anonymize", "restore"]) {
+            if (a in s.hotkeys) state.hotkeys[a] = typeof s.hotkeys[a] === "string" ? s.hotkeys[a] : null;
+          }
+        }
       } catch (_) {
         // A corrupt settings file falls back to the defaults; it is rewritten on the next change.
       }
@@ -1657,6 +1822,7 @@ if (typeof module !== "undefined") {
     }
     applyI18n();
     renderUpdates();
+    await initHotkeys();
     $("btn-upd-yes").addEventListener("click", () => setUpdates(true));
     $("btn-upd-no").addEventListener("click", () => setUpdates(false));
     $("updates").addEventListener("change", () => setUpdates($("updates").checked));
@@ -1670,6 +1836,7 @@ if (typeof module !== "undefined") {
       renderSettings();
       renderMappings();
       renderUpdates();
+      renderHotkeys();
       try {
         await persistSettings();
         setSettingsStatus(t("saved"), "ok");
