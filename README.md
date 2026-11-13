@@ -19,6 +19,7 @@ Generic PII tools replace values with random tokens, so the model can no longer 
 
 - **Topology preserved.** Addresses in the same real /24 land in the same fake /24 and keep their last octet. The same domain always becomes the same fake zone. Hostnames with dashes are replaced piece by piece. MAC addresses keep the vendor OUI. The model can still reason about subnets, routing and vendors.
 - **Sysadmin coverage.** `DOMAIN\user`, LDAP DNs (`CN`/`OU`/`DC`), SIDs with the RID kept, GUIDs, UNC paths, shell prompts like `[user@host dir]#`, `/etc/hosts` lines, syslog headers, `ssh`/`ping`/`dig` targets, Cisco secrets (`$9$`, `key 7`), SNMP communities, pre-shared keys, JWTs and cloud API keys.
+- **Storage and cloud identifiers.** Fibre Channel WWNs/WWPNs, SCSI `naa.`/`eui.` identifiers and multipath WWIDs keep their vendor part; iSCSI IQNs follow the domain mapping; AWS ARNs and account IDs; hardware serial numbers.
 - **Italian personal data, checksum-validated.** Tax code (codice fiscale), VAT number (partita IVA) and IBAN (mod-97), plus phone numbers and payment cards (Luhn, only next to a keyword).
 - **Zero network.** A single HTML file with a `default-src 'none'` Content Security Policy that anyone can inspect. The desktop app makes one request a day to GitHub only if you opt in to update checks.
 - **Windows desktop app.** A notification-area icon and two global hotkeys that anonymize or restore the clipboard, so it works with any chat client.
@@ -99,6 +100,9 @@ Requirements: Windows 10 or 11 (x64) with the Microsoft Edge WebView2 Runtime, w
 | Host label | `srvN`; dashed names piece by piece as `partN` |
 | User | `userN`; NetBIOS domain `DOMN`; LDAP `cnN`, `ouN` |
 | MAC | real OUI + counter, original separator |
+| WWN / NAA / EUI / WWID | real vendor part + counter, same length and format |
+| iSCSI IQN | `iqn.<date>.<fake reversed domain>:iscsiN` |
+| AWS account / serial number | `000000000001` / `SERIAL_N` |
 | GUID / SID | `00000000-0000-0000-0000-…` / `S-1-5-21-1000-1000-…` with the real RID |
 | Personal data | `IBAN_N`, `TAXID_N`, `VAT_N`, `PHONE_N` |
 | Terms | your fake or `TERM_N`; other spellings `~1`, `~2` |

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Storage, cloud and hardware identifiers: Fibre Channel WWNs, SCSI NAA/EUI identifiers and multipath WWIDs (vendor part kept), iSCSI IQNs (domain mapped consistently), AWS ARNs and account IDs, serial numbers. New `infra` category in Settings.
 - Configurable global shortcuts in the desktop app (Settings → Keyboard shortcuts), applied without restarting; a combination already used by another application keeps the previous one active.
 - `topomask.html` is published as a release asset, with checksum and build attestation.
 
