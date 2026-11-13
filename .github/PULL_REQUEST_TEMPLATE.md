@@ -11,7 +11,10 @@
 
 ## Release only: manual check on clean Windows 10 and 11
 
-- [ ] Starts from the extracted zip
+- [ ] Installer runs without administrator rights; Start menu entry works; optional autostart works after sign-in
+- [ ] Installing over the previous version keeps the data in `%APPDATA%\topomask`
+- [ ] Uninstall from Settings → Apps removes the program and keeps the data
+- [ ] Portable zip starts after unblocking
 - [ ] SmartScreen behavior as documented
 - [ ] Ctrl+Alt+A and Ctrl+Alt+R work and show a notification
 - [ ] A hotkey already taken by another app shows a notification, the app keeps running

@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Project logo with a dark-theme variant, application icon and favicon.
 - `--debug` option that logs the traceback of a startup failure.
+- Per-user Windows installer (Inno Setup) with Start menu entry, optional sign-in autostart and uninstaller; it avoids unblocking downloaded files by hand.
 
 ### Changed
 

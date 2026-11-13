@@ -101,3 +101,24 @@ jobs:
           path: dist/topomask/
           retention-days: 5
           if-no-files-found: error
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/build_installer.ps1
+      - name: Smoke test install
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem out/*-setup.exe | Select-Object -First 1).FullName
+          $p = Start-Process $setup -Wait -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER'
+          if ($p.ExitCode -ne 0) { throw "installer exited with $($p.ExitCode)" }
+          $app = Join-Path $env:LOCALAPPDATA 'Programs\topomask'
+          foreach ($f in 'topomask.exe', '_internal\topomask.html', '_internal\icon.png', 'unins000.exe') {
+            if (-not (Test-Path (Join-Path $app $f))) { throw "missing $f after install" }
+          }
+          $p = Start-Process (Join-Path $app 'unins000.exe') -Wait -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          if ($p.ExitCode -ne 0) { throw "uninstaller exited with $($p.ExitCode)" }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: topomask-windows-setup
+          path: out/*-setup.exe
+          retention-days: 5
+          if-no-files-found: error

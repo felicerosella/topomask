@@ -61,14 +61,17 @@ After the AI answers, **Restore** turns every fake value in its reply back into 
 
 ### Windows desktop app
 
-1. Download `topomask-vX.Y.Z-win-x64.zip` from the [releases](https://github.com/felicerosella/topomask/releases) and [verify it](#verifying-a-release).
-2. Before extracting, right-click the zip → **Properties** → check **Unblock** → **OK**. Windows marks files downloaded from the internet, and the .NET components used by WebView2 refuse to load from marked files. If you already extracted it, run `Get-ChildItem -Recurse | Unblock-File` in PowerShell from the extracted folder.
-3. Run `topomask.exe`. Use `topomask.exe --tray` to start hidden in the notification area, `topomask.exe --debug` to log the full details of a startup failure.
-4. Copy text anywhere and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> to replace the clipboard with its anonymized version, or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> to restore it.
+**Installer (recommended).** Download `topomask-vX.Y.Z-win-x64-setup.exe` from the [releases](https://github.com/felicerosella/topomask/releases), [verify it](#verifying-a-release) and run it. It installs for the current user only, without administrator rights, in `%LOCALAPPDATA%\Programs\topomask`, adds a Start menu entry and can optionally start topomask in the notification area when you sign in. Uninstall it from **Settings → Apps**; your data in `%APPDATA%\topomask\` is kept.
+
+**Portable zip.** `topomask-vX.Y.Z-win-x64.zip` runs without installation. Before extracting, right-click the zip → **Properties** → check **Unblock** → **OK**: Windows marks files downloaded from the internet, and the .NET components used by WebView2 refuse to load from marked files. If you already extracted it, run `Get-ChildItem -Recurse | Unblock-File` in PowerShell from the extracted folder.
+
+Command-line options: `--tray` starts hidden in the notification area, `--debug` logs the full details of a startup failure.
+
+Copy text anywhere and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> to replace the clipboard with its anonymized version, or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> to restore it.
 
 Data is stored in `%APPDATA%\topomask\`. Restored text is copied with the flags that keep it out of the Windows clipboard history (<kbd>Win</kbd>+<kbd>V</kbd>) and cloud clipboard sync.
 
-Releases are not code-signed yet, so Windows SmartScreen may warn on first start ("Windows protected your PC"). Verify the checksum and the build attestation first, then choose **More info → Run anyway**.
+Releases are not code-signed yet, so Windows SmartScreen may warn when you run the installer or the app ("Windows protected your PC"). Verify the checksum and the build attestation first, then choose **More info → Run anyway**.
 
 Requirements: Windows 10 or 11 (x64) with the Microsoft Edge WebView2 Runtime, which is preinstalled on current Windows versions.
 
@@ -115,6 +118,8 @@ build.bat
 ```
 
 The script installs the hash-locked dependencies from `requirements-build.txt` into `.venv-build`, runs PyInstaller and writes `dist\topomask\` together with `THIRD_PARTY_LICENSES.txt`.
+
+To build the installer as well, run `powershell -File scripts\build_installer.ps1`. It uses `ISCC.exe` from [Inno Setup](https://jrsoftware.org/isinfo.php) if it is on the `PATH`, otherwise it downloads a pinned, checksum-verified Inno Setup release, and writes `out\topomask-vX.Y.Z-win-x64-setup.exe`.
 
 ## Known limitations
 
