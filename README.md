@@ -76,7 +76,7 @@ The shortcuts can be changed in **Settings → Keyboard shortcuts**: click a sho
 
 On first start the desktop app asks whether to check GitHub once a day for a new version. If you agree, it requests the metadata of the latest release from `api.github.com` (GitHub sees your IP address and the `topomask/<version>` user agent; no text, mapping or identifier is sent). When a newer version exists, a notification and a tray menu entry open its release page; nothing is downloaded or installed automatically. You can change the choice in **Settings**. The browser version never connects anywhere: watch the repository releases on GitHub instead.
 
-Data is stored in `%APPDATA%\topomask\`. Restored text is copied with the flags that keep it out of the Windows clipboard history (<kbd>Win</kbd>+<kbd>V</kbd>) and cloud clipboard sync.
+Data is stored in `%APPDATA%\topomask\` (`settings.json`, `profiles.json` and one folder per profile under `profiles\`). Restored text is copied with the flags that keep it out of the Windows clipboard history (<kbd>Win</kbd>+<kbd>V</kbd>) and cloud clipboard sync.
 
 Releases are not code-signed yet, so Windows SmartScreen may warn when you run the installer or the app ("Windows protected your PC"). Verify the checksum and the build attestation first, then choose **More info → Run anyway**.
 
@@ -88,6 +88,7 @@ Requirements: Windows 10 or 11 (x64) with the Microsoft Edge WebView2 Runtime, w
 |---|---|
 | **Terms** | One term per line, `real` or `real=fake`. Always replaced, case-insensitively and also inside longer words (for example a customer name inside a hostname). Without an explicit fake, `TERM_N` is used. |
 | **Keep as is** | Domains and names never replaced. A domain also covers its subdomains. Common public domains are listed by default. |
+| **Profiles** | One mapping, term list and keep list per customer or project, selected in the sidebar and managed in **Settings**, so data from different contexts never mixes. Always restore with the profile you used to anonymize: the same fake value can stand for different real values in different profiles. |
 | **Settings** | Turn detection categories on or off, choose the interface language (English or Italian), reset the mapping. |
 
 ## Placeholder formats

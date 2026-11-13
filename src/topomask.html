@@ -51,6 +51,8 @@ body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
 .app { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; height: 100%; }
 nav { grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; }
 .brand { font-weight: 650; font-size: 17px; padding: 4px 10px 14px; letter-spacing: .2px; }
+.profile-picker { display: flex; flex-direction: column; gap: 4px; padding: 0 10px 12px; font-size: 12px; color: var(--muted); }
+.profile-picker select { width: 100%; }
 nav button { white-space: nowrap; text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
 nav button:hover { background: var(--bg); }
 nav button[aria-current="page"] { background: var(--accent); color: var(--accent-text); }
@@ -109,6 +111,8 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
   nav { grid-row: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; }
   .brand { padding: 8px 10px; }
+  .profile-picker { flex-direction: row; align-items: center; padding: 0 6px; }
+  .profile-picker select { width: auto; max-width: 140px; }
   footer { grid-column: 1; }
   main { overflow: auto; padding: 12px 16px; }
   .view, #view-anonymize { overflow: visible; flex: none; }
@@ -123,6 +127,7 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
 <div class="app">
   <nav aria-label="Sections">
     <div class="brand">topomask</div>
+    <label class="profile-picker"><span data-i18n="profile"></span><select id="profile"></select></label>
     <button type="button" data-view="anonymize" data-i18n="navAnonymize"></button>
     <button type="button" data-view="terms" data-i18n="navTerms"></button>
     <button type="button" data-view="keep" data-i18n="navKeep"></button>
@@ -143,6 +148,7 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
         <button type="button" id="btn-restore" class="btn" data-i18n="restoreCopy"></button>
         <button type="button" id="btn-paste" class="btn" data-i18n="paste"></button>
         <button type="button" id="btn-clear" class="btn" data-i18n="clear"></button>
+        <span id="profile-badge" class="chip" hidden></span>
         <span id="status" class="status" role="status"></span>
       </div>
       <div class="panes">
@@ -187,6 +193,18 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
       <h2 data-i18n="navSettings"></h2>
       <p class="hint" data-i18n="settingsHint"></p>
       <div id="categories" class="settings"></div>
+      <fieldset class="hotkeys">
+        <legend data-i18n="profilesTitle"></legend>
+        <p class="hint" data-i18n="profilesHint"></p>
+        <div class="hotkey-row">
+          <input id="new-profile" type="text" maxlength="40" autocomplete="off" data-i18n-placeholder="profileNew" style="flex:1;padding:7px 10px;font:inherit;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px">
+          <button type="button" id="btn-add-profile" class="btn" data-i18n="profileAdd"></button>
+        </div>
+        <div class="actions">
+          <button type="button" id="btn-del-profile" class="btn danger" data-i18n="profileDelete"></button>
+          <span id="profiles-status" class="status" role="status"></span>
+        </div>
+      </fieldset>
       <fieldset class="hotkeys desktop-only">
         <legend data-i18n="hkTitle"></legend>
         <p class="hint" data-i18n="hkHint"></p>
@@ -1235,6 +1253,19 @@ if (typeof module !== "undefined") {
       updNo: "No thanks",
       updSetting: "Check GitHub once a day for updates",
       updAvailable: "Update available: {0}",
+      profile: "Profile",
+      profilesTitle: "Profiles",
+      profilesHint: "Each profile has its own mappings, terms and keep list: use one per customer or project so their data never mixes. Always restore with the same profile you used to anonymize.",
+      profileNew: "New profile name",
+      profileAdd: "Add and switch",
+      profileDelete: "Delete current profile",
+      profileDeleteConfirm: "Click again to delete \"{0}\" and its mappings",
+      profileInvalid: "Use 1-40 letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit.",
+      profileExists: "A profile with this name already exists.",
+      profileLast: "The last profile cannot be deleted.",
+      profileCreated: "Profile \"{0}\" created.",
+      profileDeleted: "Profile \"{0}\" deleted.",
+      profileBadge: "Profile: {0}",
       language: "Language",
       langAuto: "System default",
       navAnonymize: "Anonymize",
@@ -1268,7 +1299,7 @@ if (typeof module !== "undefined") {
       mapCount: "{0} mappings",
       mapCountLimited: "Showing {0} of {1} mappings",
       resetMap: "Reset map",
-      resetConfirm: "Click again to delete all mappings",
+      resetConfirm: "Click again to delete all mappings of this profile",
       resetDone: "Map reset.",
       mapInvalid: "The saved map could not be loaded ({0}). Anonymize is disabled until you reset the map in Settings.",
       hkAnonymize: "anonymize clipboard",
@@ -1314,6 +1345,19 @@ if (typeof module !== "undefined") {
       updNo: "No, grazie",
       updSetting: "Controlla una volta al giorno su GitHub se ci sono aggiornamenti",
       updAvailable: "Aggiornamento disponibile: {0}",
+      profile: "Profilo",
+      profilesTitle: "Profili",
+      profilesHint: "Ogni profilo ha le sue corrispondenze, i suoi termini e la sua lista di valori da lasciare invariati: usane uno per cliente o progetto, così i dati non si mescolano mai. Ripristina sempre con lo stesso profilo usato per anonimizzare.",
+      profileNew: "Nome del nuovo profilo",
+      profileAdd: "Aggiungi e attiva",
+      profileDelete: "Elimina il profilo attivo",
+      profileDeleteConfirm: "Clicca di nuovo per eliminare \"{0}\" e le sue corrispondenze",
+      profileInvalid: "Usa da 1 a 40 lettere, cifre, spazi, punti, trattini o underscore, iniziando con una lettera o una cifra.",
+      profileExists: "Esiste già un profilo con questo nome.",
+      profileLast: "Non puoi eliminare l'ultimo profilo.",
+      profileCreated: "Profilo \"{0}\" creato.",
+      profileDeleted: "Profilo \"{0}\" eliminato.",
+      profileBadge: "Profilo: {0}",
       language: "Lingua",
       langAuto: "Predefinita di sistema",
       navAnonymize: "Anonimizza",
@@ -1347,7 +1391,7 @@ if (typeof module !== "undefined") {
       mapCount: "{0} corrispondenze",
       mapCountLimited: "{0} di {1} corrispondenze",
       resetMap: "Azzera la mappa",
-      resetConfirm: "Clicca di nuovo per cancellare tutte le corrispondenze",
+      resetConfirm: "Clicca di nuovo per cancellare tutte le corrispondenze di questo profilo",
       resetDone: "Mappa azzerata.",
       mapInvalid: "Impossibile caricare la mappa salvata ({0}). Anonimizza è disattivato finché non azzeri la mappa da Impostazioni.",
       hkAnonymize: "anonimizza appunti",
@@ -1394,11 +1438,35 @@ if (typeof module !== "undefined") {
     lang: "auto",
     updates: null,
     hotkeys: { anonymize: "Ctrl+Alt+A", restore: "Ctrl+Alt+R" },
+    profiles: { active: "default", list: ["default"] },
   };
 
   /* ---------- host backends ---------- */
 
-  const FILES = ["map.json", "terms.txt", "keep.txt", "settings.json"];
+  const ROOT_FILES = ["settings.json", "profiles.json"];
+  const PROFILE_FILES = ["map.json", "terms.txt", "keep.txt"];
+  const DEFAULT_PROFILE = "default";
+  const pfile = (file, profile = state.profiles.active) => `profiles/${profile}/${file}`;
+
+  function storageGet(key) {
+    try {
+      return localStorage.getItem(`topomask.${key}`);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Version 0.1.0 kept a single map, term and keep list: move them into the default profile.
+  function migrateBrowserStorage() {
+    if (storageGet("profiles.json") !== null) return;
+    const legacy = PROFILE_FILES.filter((f) => storageGet(f) !== null);
+    if (!legacy.length) return;
+    for (const f of legacy) {
+      localStorage.setItem(`topomask.${pfile(f, DEFAULT_PROFILE)}`, storageGet(f));
+      localStorage.removeItem(`topomask.${f}`);
+    }
+    localStorage.setItem("topomask.profiles.json", JSON.stringify({ active: DEFAULT_PROFILE, profiles: [DEFAULT_PROFILE] }));
+  }
 
   async function browserCopy(text) {
     try {
@@ -1422,18 +1490,25 @@ if (typeof module !== "undefined") {
   const backends = {
     browser: {
       async load() {
-        const out = {};
-        for (const f of FILES) {
-          try {
-            out[f] = localStorage.getItem(`topomask.${f}`);
-          } catch (_) {
-            out[f] = null;
-          }
+        try {
+          migrateBrowserStorage();
+        } catch (_) {
+          // Storage unavailable (private window, blocked site data): start empty.
         }
-        return out;
+        return Object.fromEntries(ROOT_FILES.map((f) => [f, storageGet(f)]));
       },
+      read: async (name) => storageGet(name),
       async save(name, text) {
         localStorage.setItem(`topomask.${name}`, text);
+      },
+      async deleteProfile(profile) {
+        const prefix = `topomask.profiles/${profile}/`;
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(prefix)) keys.push(k);
+        }
+        for (const k of keys) localStorage.removeItem(k);
       },
       copy: (text) => browserCopy(text),
       paste: () => navigator.clipboard.readText(),
@@ -1441,7 +1516,9 @@ if (typeof module !== "undefined") {
     },
     desktop: {
       load: () => window.pywebview.api.state(),
+      read: (name) => window.pywebview.api.read(name),
       save: (name, text) => window.pywebview.api.save(name, text),
+      deleteProfile: (profile) => window.pywebview.api.delete_profile(profile),
       copy: (text, priv) => window.pywebview.api.copy(text, Boolean(priv)),
       paste: () => window.pywebview.api.paste(),
       ready: () => window.pywebview.api.ready(),
@@ -1456,9 +1533,10 @@ if (typeof module !== "undefined") {
   let mapSaving = Promise.resolve();
 
   function persistMap() {
+    const name = pfile("map.json");
     const data = JSON.stringify(state.map);
     mapSaving = mapSaving
-      .then(() => backend.save("map.json", data))
+      .then(() => backend.save(name, data))
       .catch((e) => setStatus(t("notSaved", errorText(e)), "err"));
     return mapSaving;
   }
@@ -1469,6 +1547,12 @@ if (typeof module !== "undefined") {
       JSON.stringify({ enabled: state.enabled, lang: state.lang, updates: state.updates, hotkeys: state.hotkeys }),
     );
   }
+
+  function persistProfiles() {
+    return backend.save("profiles.json", JSON.stringify({ active: state.profiles.active, profiles: state.profiles.list }));
+  }
+
+  const editors = {};
 
   function bindEditor(id, file, key) {
     const el = $(id);
@@ -1485,7 +1569,7 @@ if (typeof module !== "undefined") {
       dirty = false;
       state[key] = el.value;
       try {
-        await backend.save(file, el.value);
+        await backend.save(pfile(file), el.value);
         setEditorStatus(t("saved"), "ok");
       } catch (e) {
         dirty = true;
@@ -1500,6 +1584,15 @@ if (typeof module !== "undefined") {
       timer = setTimeout(save, 500);
     });
     el.addEventListener("blur", save);
+    editors[key] = {
+      flush: save,
+      reset(value) {
+        clearTimeout(timer);
+        dirty = false;
+        el.value = value;
+        setEditorStatus("");
+      },
+    };
   }
 
   /* ---------- actions ---------- */
@@ -1522,10 +1615,12 @@ if (typeof module !== "undefined") {
 
   const total = (stats) => Object.values(stats).reduce((a, b) => a + b, 0);
 
+  const profileTag = () => (state.profiles.list.length > 1 ? `[${state.profiles.active}] ` : "");
+
   function summary(stats) {
     const n = total(stats);
     const parts = Object.entries(stats).map(([k, v]) => `${v} ${t(`stat_${k}`)}`);
-    return parts.length ? `${t("anonymizedN", n)} (${parts.join(", ")})` : t("anonymizedN", 0);
+    return profileTag() + (parts.length ? `${t("anonymizedN", n)} (${parts.join(", ")})` : t("anonymizedN", 0));
   }
 
   function renderOutput(text) {
@@ -1616,6 +1711,126 @@ if (typeof module !== "undefined") {
       await persistSettings();
     } catch (e) {
       setSettingsStatus(t("notSaved", errorText(e)), "err");
+    }
+  }
+
+  /* ---------- profiles ---------- */
+
+  const PROFILE_RE = /^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,38}[A-Za-z0-9_-])?$/;
+  const RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+  const validProfile = (name) => PROFILE_RE.test(name) && !RESERVED.test(name.split(".")[0].trim());
+
+  function setProfilesStatus(text, cls) {
+    const el = $("profiles-status");
+    el.textContent = text;
+    el.className = `status ${cls || ""}`;
+  }
+
+  function renderProfiles() {
+    const sel = $("profile");
+    sel.replaceChildren();
+    for (const name of state.profiles.list) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sel.append(opt);
+    }
+    sel.value = state.profiles.active;
+    const badge = $("profile-badge");
+    badge.hidden = state.profiles.list.length < 2;
+    badge.textContent = t("profileBadge", state.profiles.active);
+    $("btn-del-profile").disabled = state.profiles.list.length < 2;
+  }
+
+  async function loadProfile(name) {
+    const [mapText, terms, keep] = await Promise.all(PROFILE_FILES.map((f) => backend.read(pfile(f, name))));
+    state.terms = terms ?? TERMS_DEFAULT;
+    state.keep = keep ?? KEEP_DEFAULT;
+    state.map = newMap();
+    state.mapBroken = false;
+    $("load-error").hidden = true;
+    if (mapText) {
+      try {
+        const m = JSON.parse(mapText);
+        restore("", m);
+        state.map = m;
+      } catch (e) {
+        state.mapBroken = true;
+        const banner = $("load-error");
+        banner.textContent = t("mapInvalid", errorText(e));
+        banner.hidden = false;
+      }
+    }
+    if (editors.terms) editors.terms.reset(state.terms);
+    if (editors.keep) editors.keep.reset(state.keep);
+    $("output").replaceChildren();
+    $("chips").replaceChildren();
+    setStatus("");
+    renderMappings();
+    renderProfiles();
+  }
+
+  async function switchProfile(name) {
+    await Promise.all(Object.values(editors).map((ed) => ed.flush()));
+    await mapSaving;
+    state.profiles.active = name;
+    await persistProfiles();
+    await loadProfile(name);
+  }
+
+  async function onAddProfile() {
+    const name = $("new-profile").value.trim();
+    if (!validProfile(name)) return setProfilesStatus(t("profileInvalid"), "err");
+    if (state.profiles.list.some((p) => p.toLowerCase() === name.toLowerCase())) {
+      return setProfilesStatus(t("profileExists"), "err");
+    }
+    state.profiles.list.push(name);
+    try {
+      await switchProfile(name);
+      $("new-profile").value = "";
+      setProfilesStatus(t("profileCreated", name), "ok");
+    } catch (e) {
+      setProfilesStatus(t("notSaved", errorText(e)), "err");
+    }
+  }
+
+  let deleteArmed = null;
+
+  async function onDeleteProfile() {
+    const btn = $("btn-del-profile");
+    const name = state.profiles.active;
+    if (state.profiles.list.length < 2) return setProfilesStatus(t("profileLast"), "err");
+    if (!deleteArmed) {
+      btn.textContent = t("profileDeleteConfirm", name);
+      deleteArmed = setTimeout(() => {
+        deleteArmed = null;
+        btn.textContent = t("profileDelete");
+      }, 4000);
+      return;
+    }
+    clearTimeout(deleteArmed);
+    deleteArmed = null;
+    btn.textContent = t("profileDelete");
+    try {
+      state.profiles.list = state.profiles.list.filter((p) => p !== name);
+      await switchProfile(state.profiles.list[0]);
+      await backend.deleteProfile(name);
+      setProfilesStatus(t("profileDeleted", name), "ok");
+    } catch (e) {
+      setProfilesStatus(errorText(e), "err");
+    }
+  }
+
+  function loadProfiles(raw) {
+    if (!raw) return;
+    try {
+      const p = JSON.parse(raw);
+      const list = Array.isArray(p.profiles) ? p.profiles.filter((n) => typeof n === "string" && validProfile(n)) : [];
+      if (!list.length) return;
+      state.profiles.list = [...new Set(list)];
+      state.profiles.active = list.includes(p.active) ? p.active : list[0];
+    } catch (_) {
+      // A corrupt profiles.json falls back to the default profile; existing folders are untouched.
     }
   }
 
@@ -1750,7 +1965,7 @@ if (typeof module !== "undefined") {
       }
       if (action === "restore") {
         const result = restore(String(text), state.map);
-        return JSON.stringify({ text: result.text, summary: t("restoredN", result.count) });
+        return JSON.stringify({ text: result.text, summary: profileTag() + t("restoredN", result.count) });
       }
       return JSON.stringify({ error: `unknown action: ${action}` });
     } catch (e) {
@@ -1863,8 +2078,7 @@ if (typeof module !== "undefined") {
   }
 
   function loadState(files) {
-    if (files["terms.txt"] != null) state.terms = files["terms.txt"];
-    if (files["keep.txt"] != null) state.keep = files["keep.txt"];
+    loadProfiles(files["profiles.json"]);
     if (files["settings.json"]) {
       try {
         const s = JSON.parse(files["settings.json"]);
@@ -1878,18 +2092,6 @@ if (typeof module !== "undefined") {
         }
       } catch (_) {
         // A corrupt settings file falls back to the defaults; it is rewritten on the next change.
-      }
-    }
-    if (files["map.json"]) {
-      try {
-        const m = JSON.parse(files["map.json"]);
-        restore("", m);
-        state.map = m;
-      } catch (e) {
-        state.mapBroken = true;
-        const banner = $("load-error");
-        banner.textContent = t("mapInvalid", errorText(e));
-        banner.hidden = false;
       }
     }
   }
@@ -1917,6 +2119,7 @@ if (typeof module !== "undefined") {
       renderMappings();
       renderUpdates();
       renderHotkeys();
+      renderProfiles();
       try {
         await persistSettings();
         setSettingsStatus(t("saved"), "ok");
@@ -1924,10 +2127,25 @@ if (typeof module !== "undefined") {
         setSettingsStatus(t("notSaved", errorText(e)), "err");
       }
     });
-    $("terms").value = state.terms;
-    $("keep").value = state.keep;
     bindEditor("terms", "terms.txt", "terms");
     bindEditor("keep", "keep.txt", "keep");
+    try {
+      await loadProfile(state.profiles.active);
+    } catch (e) {
+      setStatus(errorText(e), "err");
+    }
+    $("profile").addEventListener("change", async () => {
+      try {
+        await switchProfile($("profile").value);
+      } catch (e) {
+        setStatus(errorText(e), "err");
+      }
+    });
+    $("btn-add-profile").addEventListener("click", onAddProfile);
+    $("new-profile").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") onAddProfile();
+    });
+    $("btn-del-profile").addEventListener("click", onDeleteProfile);
     renderSettings();
     for (const btn of document.querySelectorAll("nav button")) {
       btn.addEventListener("click", () => show(btn.dataset.view));
