@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Project logo with a dark-theme variant, application icon and favicon.
+- `--debug` option that logs the traceback of a startup failure.
+
+### Changed
+
+- Startup errors now show the error details and, when the files are still marked as downloaded from the internet, how to unblock them.
 
 ## [0.1.0] - 2026-11-13
 

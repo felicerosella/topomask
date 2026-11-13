@@ -62,8 +62,9 @@ After the AI answers, **Restore** turns every fake value in its reply back into 
 ### Windows desktop app
 
 1. Download `topomask-vX.Y.Z-win-x64.zip` from the [releases](https://github.com/felicerosella/topomask/releases) and [verify it](#verifying-a-release).
-2. Extract it and run `topomask.exe`. Use `topomask.exe --tray` to start hidden in the notification area.
-3. Copy text anywhere and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> to replace the clipboard with its anonymized version, or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> to restore it.
+2. Before extracting, right-click the zip → **Properties** → check **Unblock** → **OK**. Windows marks files downloaded from the internet, and the .NET components used by WebView2 refuse to load from marked files. If you already extracted it, run `Get-ChildItem -Recurse | Unblock-File` in PowerShell from the extracted folder.
+3. Run `topomask.exe`. Use `topomask.exe --tray` to start hidden in the notification area, `topomask.exe --debug` to log the full details of a startup failure.
+4. Copy text anywhere and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> to replace the clipboard with its anonymized version, or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> to restore it.
 
 Data is stored in `%APPDATA%\topomask\`. Restored text is copied with the flags that keep it out of the Windows clipboard history (<kbd>Win</kbd>+<kbd>V</kbd>) and cloud clipboard sync.
 

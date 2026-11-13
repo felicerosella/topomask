@@ -93,13 +93,16 @@ class Storage:
         return {name: self.read(name) for name in sorted(DATA_FILES)}
 
 
-def setup_logging(folder: Path) -> None:
-    """Log events and exception names only: never clipboard text or mapped values."""
+def setup_logging(folder: Path, debug: bool = False) -> None:
+    """Log events and exception names only: never clipboard text or mapped values.
+
+    With debug enabled, startup failures are logged with their traceback.
+    """
     folder.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(folder / f"{APP_NAME}.log", maxBytes=LOG_MAX_BYTES, backupCount=1, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     log.addHandler(handler)
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG if debug else logging.INFO)
 
 
 def load_icon(size: int) -> Image:
@@ -497,9 +500,33 @@ class App:
         self.window.destroy()
 
 
+def has_mark_of_the_web(path: Path) -> bool:
+    """True if Windows flagged the file as downloaded (Zone.Identifier stream present)."""
+    try:
+        return Path(f"{path}:Zone.Identifier").exists()
+    except (OSError, ValueError):
+        return False
+
+
+def startup_error_message(exc: BaseException, executable: Path) -> str:
+    lines = [f"{APP_NAME} stopped because of an unexpected error:", "", f"{type(exc).__name__}: {exc}"]
+    if has_mark_of_the_web(executable):
+        lines += [
+            "",
+            "The files are still marked as downloaded from the internet, which prevents Windows from "
+            "loading some components. Close this message, run this in PowerShell from the topomask folder "
+            "and start it again:",
+            "",
+            "Get-ChildItem -Recurse | Unblock-File",
+        ]
+    lines += ["", f"For details run {APP_NAME}.exe --debug and check {APP_NAME}.log in the data folder."]
+    return "\n".join(lines)
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=APP_NAME, description="Reversible, topology-preserving anonymizer.")
     parser.add_argument("--tray", action="store_true", help="start hidden in the notification area")
+    parser.add_argument("--debug", action="store_true", help="log startup failures with their traceback")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser.parse_args(argv)
 
@@ -517,7 +544,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         storage = Storage(data_dir())
-        setup_logging(storage.root)
+        setup_logging(storage.root, debug=args.debug)
         html = load_html(resource_path("topomask.html"))
     except (OSError, RuntimeError) as exc:
         message_box(f"{APP_NAME} could not start: {exc}")
@@ -526,8 +553,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         App(storage, html, start_hidden=args.tray).run()
     except Exception as exc:
-        log.error("fatal error: %s", type(exc).__name__)
-        message_box(f"{APP_NAME} stopped because of an unexpected error ({type(exc).__name__}).")
+        if args.debug:
+            log.exception("fatal error")
+        else:
+            log.error("fatal error: %s", type(exc).__name__)
+        message_box(startup_error_message(exc, Path(sys.executable)))
         return 1
     return 0
 

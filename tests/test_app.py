@@ -99,3 +99,21 @@ def test_load_icon_uses_bundled_asset() -> None:
     img = topomask.load_icon(48)
     assert img.size == (48, 48)
     assert img.mode == "RGBA"
+
+
+def test_startup_error_message_includes_details(tmp_path: Path) -> None:
+    msg = topomask.startup_error_message(RuntimeError("Failed to load Python.Runtime"), tmp_path / "topomask.exe")
+    assert "RuntimeError: Failed to load Python.Runtime" in msg
+    assert "--debug" in msg
+    assert "Unblock-File" not in msg
+
+
+def test_startup_error_message_suggests_unblock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(topomask, "has_mark_of_the_web", lambda _path: True)
+    msg = topomask.startup_error_message(RuntimeError("x"), tmp_path / "topomask.exe")
+    assert "Unblock-File" in msg
+
+
+def test_parse_args_debug() -> None:
+    assert topomask.parse_args(["--debug"]).debug is True
+    assert topomask.parse_args([]).debug is False
