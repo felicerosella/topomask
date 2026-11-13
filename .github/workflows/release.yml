@@ -47,17 +47,20 @@ jobs:
           New-Item -ItemType Directory -Force out | Out-Null
           Compress-Archive -Path dist/topomask -DestinationPath "out/topomask-$env:TAG-win-x64.zip"
           ./scripts/build_installer.ps1 -OutputName "topomask-$env:TAG-win-x64-setup"
+          Copy-Item src/topomask.html out/topomask.html
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             out/*.zip
             out/*-setup.exe
+            out/topomask.html
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-windows
           path: |
             out/*.zip
             out/*-setup.exe
+            out/topomask.html
           if-no-files-found: error
 
   sbom:
@@ -96,9 +99,9 @@ jobs:
           merge-multiple: true
       - name: Checksums
         working-directory: out
-        run: sha256sum -- *.zip *-setup.exe sbom.cdx.json > SHA256SUMS.txt
+        run: sha256sum -- *.zip *-setup.exe topomask.html sbom.cdx.json > SHA256SUMS.txt
       - name: Create draft release
         working-directory: out
         run: |
           gh release create "$TAG" --draft --verify-tag --generate-notes --title "$TAG" \
-            -- *.zip *-setup.exe sbom.cdx.json SHA256SUMS.txt
+            -- *.zip *-setup.exe topomask.html sbom.cdx.json SHA256SUMS.txt
