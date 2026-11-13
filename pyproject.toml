@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 [project]
 name = "topomask"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reversible, topology-preserving anonymizer for logs and configs before you paste them into an AI."
 readme = "README.md"
 license = "Apache-2.0"

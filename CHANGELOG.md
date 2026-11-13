@@ -6,12 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
 ### Added
 
 - Profiles: separate mappings, terms and keep lists per customer or project, with a selector in the sidebar. Existing data moves into the `default` profile automatically. Hotkey notifications name the profile when there is more than one.
 - Storage, cloud and hardware identifiers: Fibre Channel WWNs, SCSI NAA/EUI identifiers and multipath WWIDs (vendor part kept), iSCSI IQNs (domain mapped consistently), AWS ARNs and account IDs, serial numbers. New `infra` category in Settings.
 - Configurable global shortcuts in the desktop app (Settings → Keyboard shortcuts), applied without restarting; a combination already used by another application keeps the previous one active.
 - `topomask.html` is published as a release asset, with checksum and build attestation.
+
+### Changed
+
+- Data layout: settings stay at the root of the data folder, mappings, terms and keep lists move to `profiles/<name>/`. Migration from 0.1.0 is automatic and one-way: after upgrading, going back to 0.1.0 starts with an empty mapping.
 
 ## [0.1.0] - 2026-11-13
 
@@ -30,5 +36,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--tray` and `--debug` command-line options.
 - Release artifacts with SHA-256 checksums, CycloneDX SBOM and build provenance attestation.
 
-[Unreleased]: https://github.com/felicerosella/topomask/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/felicerosella/topomask/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/felicerosella/topomask/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/felicerosella/topomask/releases/tag/v0.1.0

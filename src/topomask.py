@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 if TYPE_CHECKING:
     from PIL.Image import Image
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 APP_NAME = "topomask"
 ROOT_FILES = frozenset({"settings.json", "profiles.json"})
