@@ -55,7 +55,7 @@ After the AI answers, **Restore** turns every fake value in its reply back into 
 
 ### In a browser (any OS)
 
-1. Download `topomask.html` from the [latest release](https://github.com/felicerosella/topomask/releases/latest) or from `src/` in this repository.
+1. Download `topomask.html` from the [latest release](https://github.com/felicerosella/topomask/releases/latest) (for v0.1.0, from [`src/` at the tag](https://github.com/felicerosella/topomask/blob/v0.1.0/src/topomask.html) with **Download raw file**).
 2. Open it with a double click. Data (mapping, terms, settings) is kept in the browser's local storage for that file.
 3. Paste text, press **Anonymize and copy** (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>), paste the result into the AI. Paste the answer back and press **Restore and copy**.
 
