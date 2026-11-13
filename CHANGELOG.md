@@ -13,7 +13,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The action buttons sit in a toolbar above the input and output panes, which now scroll independently.
 - Startup errors now show the error details and, when the files are still marked as downloaded from the internet, how to unblock them.
+
+### Fixed
+
+- Framed login banners and box-drawing banners are removed as a single block; ASCII tables are left intact.
+- `Last login: <weekday>` lines no longer treat the weekday as a user name.
+- The output pane no longer overflows on top of the action buttons when the text is long.
 
 ## [0.1.0] - 2026-11-13
 

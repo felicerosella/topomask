@@ -48,34 +48,36 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
-.app { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.app { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; height: 100%; }
 nav { grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; }
 .brand { font-weight: 650; font-size: 17px; padding: 4px 10px 14px; letter-spacing: .2px; }
-nav button { text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
+nav button { white-space: nowrap; text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
 nav button:hover { background: var(--bg); }
 nav button[aria-current="page"] { background: var(--accent); color: var(--accent-text); }
-main { padding: 18px 20px; overflow: auto; min-width: 0; }
+main { padding: 16px 20px; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 footer { grid-column: 2; border-top: 1px solid var(--border); padding: 6px 20px; color: var(--muted); font-size: 12px; display: flex; gap: 16px; justify-content: space-between; }
 [data-host=browser] .desktop-only, [data-host=desktop] .browser-only { display: none; }
-.view { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.view { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow: auto; }
+#view-anonymize { overflow: hidden; }
 .view[hidden] { display: none; }
 h2 { margin: 0; font-size: 18px; font-weight: 600; }
 .hint { margin: 0; color: var(--muted); }
-.panes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1; min-height: 260px; }
-.pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+.pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; }
 .pane-head { display: flex; align-items: center; gap: 8px; min-height: 24px; flex-wrap: wrap; }
 .pane-head label, .pane-head span.title { font-weight: 600; }
 textarea, .output, input[type="search"] { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 13px/1.5 var(--mono); }
-textarea { resize: none; padding: 10px; flex: 1; width: 100%; }
+textarea { resize: none; padding: 10px; flex: 1; width: 100%; min-height: 0; overflow: auto; }
 textarea:focus, .output:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.output { padding: 10px; flex: 1; overflow: auto; white-space: pre-wrap; word-break: break-word; }
-.editor { min-height: 320px; }
+.output { padding: 10px; flex: 1; min-height: 0; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.editor { flex: 1; min-height: 200px; }
 mark { background: var(--mark); color: var(--mark-text); border-radius: 3px; padding: 0 1px; }
 mark.secret { background: var(--secret); color: var(--secret-text); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--mark); color: var(--mark-text); }
 .chip.secret { background: var(--secret); color: var(--secret-text); }
-.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: none; }
+.actions .status { margin-left: auto; }
 button.btn { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; }
 button.btn:hover { border-color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
@@ -88,17 +90,19 @@ button.danger { border-color: var(--err); color: var(--err); }
 table { border-collapse: collapse; width: 100%; font: 13px/1.4 var(--mono); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--border); word-break: break-all; }
 th { font-family: var(--sans); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
-.table-wrap { overflow: auto; flex: 1; }
+.table-wrap { overflow: auto; flex: 1; min-height: 0; }
 .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 16px; }
 .settings label, .lang-row { display: flex; gap: 8px; align-items: center; }
 select { font: inherit; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
 kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
 @media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
   nav { grid-row: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; }
   .brand { padding: 8px 10px; }
   footer { grid-column: 1; }
-  .panes { grid-template-columns: 1fr; }
+  main { overflow: auto; padding: 12px 16px; }
+  .view, #view-anonymize { overflow: visible; flex: none; }
+  .panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: 260px 260px; flex: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
@@ -119,6 +123,13 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
     <div id="load-error" class="banner-error" role="alert" hidden></div>
 
     <section id="view-anonymize" class="view">
+      <div class="actions">
+        <button type="button" id="btn-anonymize" class="btn primary" data-i18n="anonymizeCopy"></button>
+        <button type="button" id="btn-restore" class="btn" data-i18n="restoreCopy"></button>
+        <button type="button" id="btn-paste" class="btn" data-i18n="paste"></button>
+        <button type="button" id="btn-clear" class="btn" data-i18n="clear"></button>
+        <span id="status" class="status" role="status"></span>
+      </div>
       <div class="panes">
         <div class="pane">
           <div class="pane-head"><label for="input" data-i18n="input"></label></div>
@@ -128,13 +139,6 @@ kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4p
           <div class="pane-head"><span class="title" data-i18n="output"></span><div id="chips" class="chips"></div></div>
           <div id="output" class="output" tabindex="0" aria-live="polite"></div>
         </div>
-      </div>
-      <div class="actions">
-        <button type="button" id="btn-anonymize" class="btn primary" data-i18n="anonymizeCopy"></button>
-        <button type="button" id="btn-restore" class="btn" data-i18n="restoreCopy"></button>
-        <button type="button" id="btn-paste" class="btn" data-i18n="paste"></button>
-        <button type="button" id="btn-clear" class="btn" data-i18n="clear"></button>
-        <span id="status" class="status" role="status"></span>
       </div>
     </section>
 
