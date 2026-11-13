@@ -1,0 +1,1619 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en" data-host="browser">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>topomask</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #1c2430;
+  --muted: #5d6b7c;
+  --border: #d9dee5;
+  --accent: #24507a;
+  --accent-text: #ffffff;
+  --mark: #dbe9f7;
+  --mark-text: #12324f;
+  --secret: #f7dede;
+  --secret-text: #6b1c1c;
+  --ok: #2c6e3f;
+  --err: #a12a2a;
+  --radius: 8px;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181d;
+    --panel: #1c2128;
+    --text: #e3e8ee;
+    --muted: #96a3b3;
+    --border: #2f3742;
+    --accent: #5b8fc4;
+    --accent-text: #0e1620;
+    --mark: #23415f;
+    --mark-text: #dceafa;
+    --secret: #5a2626;
+    --secret-text: #fbdcdc;
+    --ok: #7cc98f;
+    --err: #f08a8a;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+.app { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: 1fr auto; height: 100%; }
+nav { grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; }
+.brand { font-weight: 650; font-size: 17px; padding: 4px 10px 14px; letter-spacing: .2px; }
+nav button { text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
+nav button:hover { background: var(--bg); }
+nav button[aria-current="page"] { background: var(--accent); color: var(--accent-text); }
+main { padding: 18px 20px; overflow: auto; min-width: 0; }
+footer { grid-column: 2; border-top: 1px solid var(--border); padding: 6px 20px; color: var(--muted); font-size: 12px; display: flex; gap: 16px; justify-content: space-between; }
+[data-host=browser] .desktop-only, [data-host=desktop] .browser-only { display: none; }
+.view { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.view[hidden] { display: none; }
+h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.hint { margin: 0; color: var(--muted); }
+.panes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1; min-height: 260px; }
+.pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pane-head { display: flex; align-items: center; gap: 8px; min-height: 24px; flex-wrap: wrap; }
+.pane-head label, .pane-head span.title { font-weight: 600; }
+textarea, .output, input[type="search"] { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: 13px/1.5 var(--mono); }
+textarea { resize: none; padding: 10px; flex: 1; width: 100%; }
+textarea:focus, .output:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.output { padding: 10px; flex: 1; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.editor { min-height: 320px; }
+mark { background: var(--mark); color: var(--mark-text); border-radius: 3px; padding: 0 1px; }
+mark.secret { background: var(--secret); color: var(--secret-text); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--mark); color: var(--mark-text); }
+.chip.secret { background: var(--secret); color: var(--secret-text); }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button.btn { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; }
+button.btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.danger { border-color: var(--err); color: var(--err); }
+.status { color: var(--muted); font-size: 13px; }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--err); }
+.banner-error { border: 1px solid var(--err); color: var(--err); border-radius: var(--radius); padding: 8px 12px; }
+.banner-error[hidden] { display: none; }
+table { border-collapse: collapse; width: 100%; font: 13px/1.4 var(--mono); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--border); word-break: break-all; }
+th { font-family: var(--sans); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+.table-wrap { overflow: auto; flex: 1; }
+.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 16px; }
+.settings label, .lang-row { display: flex; gap: 8px; align-items: center; }
+select { font: inherit; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+kbd { font: 12px var(--mono); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  nav { grid-row: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; }
+  .brand { padding: 8px 10px; }
+  footer { grid-column: 1; }
+  .panes { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav aria-label="Sections">
+    <div class="brand">topomask</div>
+    <button type="button" data-view="anonymize" data-i18n="navAnonymize"></button>
+    <button type="button" data-view="terms" data-i18n="navTerms"></button>
+    <button type="button" data-view="keep" data-i18n="navKeep"></button>
+    <button type="button" data-view="mappings" data-i18n="navMappings"></button>
+    <button type="button" data-view="settings" data-i18n="navSettings"></button>
+  </nav>
+  <main>
+    <div id="load-error" class="banner-error" role="alert" hidden></div>
+
+    <section id="view-anonymize" class="view">
+      <div class="panes">
+        <div class="pane">
+          <div class="pane-head"><label for="input" data-i18n="input"></label></div>
+          <textarea id="input" spellcheck="false" autocomplete="off"></textarea>
+        </div>
+        <div class="pane">
+          <div class="pane-head"><span class="title" data-i18n="output"></span><div id="chips" class="chips"></div></div>
+          <div id="output" class="output" tabindex="0" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-anonymize" class="btn primary" data-i18n="anonymizeCopy"></button>
+        <button type="button" id="btn-restore" class="btn" data-i18n="restoreCopy"></button>
+        <button type="button" id="btn-paste" class="btn" data-i18n="paste"></button>
+        <button type="button" id="btn-clear" class="btn" data-i18n="clear"></button>
+        <span id="status" class="status" role="status"></span>
+      </div>
+    </section>
+
+    <section id="view-terms" class="view" hidden>
+      <h2 data-i18n="navTerms"></h2>
+      <p class="hint" data-i18n="termsHint"></p>
+      <textarea id="terms" class="editor" spellcheck="false" aria-labelledby="view-terms"></textarea>
+      <div id="terms-status" class="status" role="status"></div>
+    </section>
+
+    <section id="view-keep" class="view" hidden>
+      <h2 data-i18n="navKeep"></h2>
+      <p class="hint" data-i18n="keepHint"></p>
+      <textarea id="keep" class="editor" spellcheck="false"></textarea>
+      <div id="keep-status" class="status" role="status"></div>
+    </section>
+
+    <section id="view-mappings" class="view" hidden>
+      <h2 data-i18n="navMappings"></h2>
+      <input id="search" type="search" data-i18n-placeholder="search" autocomplete="off" style="padding:7px 10px">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th data-i18n="colFake"></th><th data-i18n="colReal"></th></tr></thead>
+          <tbody id="map-rows"></tbody>
+        </table>
+      </div>
+      <div id="map-count" class="status"></div>
+    </section>
+
+    <section id="view-settings" class="view" hidden>
+      <h2 data-i18n="navSettings"></h2>
+      <p class="hint" data-i18n="settingsHint"></p>
+      <div id="categories" class="settings"></div>
+      <label class="lang-row"><span data-i18n="language"></span>
+        <select id="lang">
+          <option value="auto" data-i18n="langAuto"></option>
+          <option value="en">English</option>
+          <option value="it">Italiano</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button type="button" id="btn-reset" class="btn danger" data-i18n="resetMap"></button>
+        <span id="settings-status" class="status" role="status"></span>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <span class="desktop-only"><kbd>Ctrl+Alt+A</kbd> <span data-i18n="hkAnonymize"></span> &middot; <kbd>Ctrl+Alt+R</kbd> <span data-i18n="hkRestore"></span></span>
+    <span class="browser-only" data-i18n="browserNote"></span>
+    <span id="version"></span>
+  </footer>
+</div>
+
+<script id="core">
+"use strict";
+
+const VERSION = "0.1.0";
+
+const ENABLED_DEFAULT = Object.freeze({
+  banner: true,
+  pii: true,
+  mac: true,
+  email: true,
+  host: true,
+  user: true,
+  id: true,
+  ip6: true,
+  ip: true,
+});
+
+const TERMS_DEFAULT = [
+  "# One term per line: \"real\" or \"real=fake\".",
+  "# Terms are matched case-insensitively, also inside longer words.",
+  "# Contoso=COMPANY_A",
+  "",
+].join("\n");
+
+const KEEP_DEFAULT = [
+  "# Domains and names left as they are, subdomains included. One per line.",
+  "microsoft.com", "windows.com", "windowsupdate.com", "office.com", "live.com", "azure.com",
+  "google.com", "googleapis.com", "gstatic.com",
+  "github.com", "githubusercontent.com", "gitlab.com",
+  "redhat.com", "fedoraproject.org", "centos.org", "rockylinux.org", "almalinux.org",
+  "debian.org", "ubuntu.com", "canonical.com", "kernel.org",
+  "docker.io", "docker.com", "quay.io", "k8s.io", "kubernetes.io",
+  "amazonaws.com", "cloudflare.com", "akamai.net",
+  "python.org", "pypi.org", "npmjs.com", "npmjs.org", "apache.org", "mozilla.org",
+  "letsencrypt.org", "openssl.org", "ietf.org", "w3.org", "ansible.com",
+  "example.com", "example.org",
+  "",
+].join("\n");
+
+const PLACEHOLDERS = ["<SECRET>", "<CARD>", "<HASH>", "<FINGERPRINT>", "[banner removed]"];
+const FAKE_DOMAIN = /\.invalid$/i;
+const MAX_ATTEMPTS = 10000;
+const FAKE_NETS = 512;
+
+const words = (s) => s.trim().split(/\s+/);
+
+const TLD = new Set(words(`
+  com net org info biz io co me us eu uk de it fr es nl be ch at se no dk fi pl pt cz gr ie ru cn jp kr
+  in br au ca mx ar za tr ua ro hu sk si hr bg rs lt lv ee lu is li mt cy sm va tw hk sg nz il ae sa
+  gov edu mil int arpa
+  local lan corp internal intra intranet home localdomain priv private
+  test example
+  cloud dev app ai tv xyz online site tech pro group global systems services solutions network digital
+`));
+
+const FILE_EXT = new Set(words("py sh md pl rs so cc mk zip mov in ps cs"));
+
+const SLD2 = new Set(words(`
+  co.uk org.uk ac.uk gov.uk me.uk ltd.uk plc.uk com.au net.au org.au edu.au gov.au co.nz org.nz
+  co.za org.za com.br net.br org.br gov.br com.ar com.mx com.tr com.cn net.cn org.cn co.jp ne.jp or.jp
+  ac.jp co.kr or.kr co.in net.in org.in com.sg com.hk com.tw co.il com.pl gov.it edu.it
+`));
+
+const COMMON = new Set(words(`
+  www mail smtp imap pop pop3 mx ns ns1 ns2 ns3 ns4 dns ntp ftp sftp vpn api cdn static assets img media
+  autodiscover autoconfig webmail owa portal login sso auth accounts git wiki docs help support status
+  blog shop store download downloads update updates repo mirror mirrors proxy gateway relay lists news
+`));
+
+const SYSTEM = new Set([
+  ...words(`
+    root admin administrator administrators system localhost nobody daemon bin sys guest everyone
+    builtin sshd apache nginx www-data httpd postgres mysql oracle redis git svn jenkins ansible
+    ubuntu ec2-user centos cloud-user rocky almalinux fedora vagrant default public shared
+    users trustedinstaller workgroup authority service sha256 sha512 sha1 md5
+  `),
+  "nt authority", "authenticated users", "network service", "local service", "local system",
+  "default user", "all users", "domain users", "domain admins", "domain computers",
+]);
+
+const LDAP_STD = new Set([
+  ...words(`
+    users computers builtin system configuration schema foreignsecurityprincipals microsoft policies
+    sites services partitions infrastructure lostandfound keys roles adminsdholder krbtgt dnsadmins
+    dnsupdateproxy administrators aia cdp kra oid ntauthcertificates meetings rpcservices
+    winsockservices ipsec displayspecifiers extended-rights subnets transports inter-site
+  `),
+  "domain controllers", "program data", "managed service accounts", "default-first-site-name",
+  "ntds quotas", "wellknown security principals", "domain admins", "domain users",
+  "domain computers", "domain guests", "enterprise admins", "schema admins", "account operators",
+  "server operators", "backup operators", "print operators", "remote desktop users",
+  "group policy creator owners", "cert publishers", "public key services",
+  "certification authorities", "enrollment services", "certificate templates",
+  "file replication service", "domain system volume", "deleted objects", "physical locations",
+  "query-policies", "default query policy", "windows nt", "directory service", "optional features",
+  "inter-site transports", "rid manager$", "rid set", "microsoftdns", "dfsr-globalsettings",
+]);
+
+const COMMON_PARTS = new Set(words(`
+  prod production test testing stage staging devel develop preprod backup backups mgmt manage node nodes
+  master slave worker primary secondary replica server servers client clients linux windows unix
+  cluster public private internal external data storage proxy front frontend back backend edge core
+  east west north south central europe region zone site main temp demo sandbox local remote admin
+  service services infra monitor monitoring logs logging metrics mail http https ldap ldaps smtp vlan
+  host hosts
+`));
+
+const NETBIOS_SKIP = new Set(words(`
+  HKLM HKCU HKCR HKU HKCC HKEY_LOCAL_MACHINE HKEY_CURRENT_USER HKEY_CLASSES_ROOT HKEY_USERS
+  HKEY_CURRENT_CONFIG SYSTEM SOFTWARE BUILTIN AUTHORITY SERVICE WORKGROUP NT
+`));
+
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isPlaceholder = (s) => s.startsWith("<") || s.startsWith("[banner");
+
+function put(o, k, v) {
+  Object.defineProperty(o, k, { value: v, writable: true, enumerable: true, configurable: true });
+}
+
+function bucketOf(o, k) {
+  if (!hasOwn(o, k)) put(o, k, {});
+  return o[k];
+}
+
+function parseLines(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+}
+
+function newMap() {
+  return { v: 1, fwd: {}, rev: {}, n: {}, subnets: {}, terms: {} };
+}
+
+function checkMap(map) {
+  if (!map || typeof map !== "object" || map.v !== 1) {
+    throw new Error("unsupported map format (expected v: 1)");
+  }
+  for (const f of ["fwd", "rev", "n", "subnets", "terms"]) {
+    if (!map[f] || typeof map[f] !== "object" || Array.isArray(map[f])) {
+      throw new Error(`invalid map: "${f}" must be an object`);
+    }
+  }
+}
+
+function context(map, opts) {
+  checkMap(map);
+  const enabled = Object.assign({}, ENABLED_DEFAULT, opts.enabled || {});
+  const keepSrc = opts.keep === undefined ? KEEP_DEFAULT : opts.keep;
+  const keep = (Array.isArray(keepSrc) ? keepSrc : parseLines(keepSrc)).map((k) =>
+    String(k).trim().toLowerCase().replace(/^\*?\./, ""),
+  );
+  const realKeys = new Set();
+  for (const cat of Object.keys(map.fwd)) {
+    for (const k of Object.keys(map.fwd[cat])) realKeys.add(k.toLowerCase());
+  }
+  const fakeNets = new Set(Object.values(map.subnets));
+  const termFakes = new Set(Object.values(map.terms).map((f) => f.toLowerCase()));
+  return { map, enabled, keep, realKeys, fakeNets, termFakes, reservedNets: new Set(), stats: {} };
+}
+
+function sub(ctx, cat, text, re, fn) {
+  return text.replace(re, (...args) => {
+    const out = fn(...args);
+    if (out !== args[0]) ctx.stats[cat] = (ctx.stats[cat] || 0) + 1;
+    return out;
+  });
+}
+
+function isKept(ctx, name) {
+  const l = name.toLowerCase();
+  return ctx.keep.some((k) => l === k || l.endsWith("." + k));
+}
+
+// Returns the fake for `real` in category `cat`, creating it if needed.
+// A fake is never handed out twice: reusing one would make restore ambiguous.
+function token(ctx, cat, real, make, opts = {}) {
+  const { map } = ctx;
+  const key = opts.key === undefined ? real.toLowerCase() : opts.key;
+  const bucket = bucketOf(map.fwd, cat);
+  if (hasOwn(bucket, key)) return bucket[key];
+  if (hasOwn(map.rev, real) && !ctx.realKeys.has(real.toLowerCase())) return real;
+  ctx.realKeys.add(key.toLowerCase());
+  const counter = opts.counter || cat;
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const n = (hasOwn(map.n, counter) ? map.n[counter] : 0) + 1;
+    put(map.n, counter, n);
+    const fake = make(n);
+    if (hasOwn(map.rev, fake) || ctx.realKeys.has(fake.toLowerCase())) continue;
+    put(bucket, key, fake);
+    if (opts.rev !== false) put(map.rev, fake, real);
+    return fake;
+  }
+  throw new Error(`no free placeholder for category "${cat}" after ${MAX_ATTEMPTS} attempts`);
+}
+
+function alias(ctx, fake, real) {
+  if (!hasOwn(ctx.map.rev, fake)) put(ctx.map.rev, fake, real);
+}
+
+/* ---------- 0. banners ---------- */
+
+function stepBanner(ctx, text) {
+  const lines = text.split(/(?<=\n)/);
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (run.length >= 3) {
+      const eol = (run[run.length - 1].match(/\r?\n$/) || [""])[0];
+      out.push("[banner removed]" + eol);
+      ctx.stats.banner = (ctx.stats.banner || 0) + 1;
+    } else {
+      out.push(...run);
+    }
+    run = [];
+  };
+  for (const line of lines) {
+    const visible = line.replace(/\s+/g, "");
+    const alnum = (visible.match(/[\p{L}\p{N}]/gu) || []).length;
+    if (visible.length > 0 && alnum / visible.length < 0.35) {
+      run.push(line);
+    } else {
+      flush();
+      out.push(line);
+    }
+  }
+  flush();
+  return out.join("");
+}
+
+/* ---------- 1. secrets ---------- */
+
+const RE_TOKENS = [
+  /\b(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA|ANVA|AIPA)[0-9A-Z]{16}\b/g,
+  /\bgh[pousr]_[A-Za-z0-9]{36,255}\b/g,
+  /\bgithub_pat_[A-Za-z0-9_]{22,255}\b/g,
+  /\bxox[abposr]-[A-Za-z0-9-]{10,}/g,
+  /\bAIza[0-9A-Za-z_-]{35}\b/g,
+  /\b(?:sk|rk|pk)_(?:live|test)_[0-9A-Za-z]{16,}\b/g,
+  /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}/g,
+  /\bglpat-[0-9A-Za-z_-]{20,}/g,
+  /\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g,
+];
+
+const K_SEG =
+  "(?:[\\w.-]*?(?:password|passwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|" +
+  "private[_-]?key|client[_-]?secret|credentials?|community)[\\w.-]*|pwd|pass|psk)";
+
+const RE_KV = new RegExp(
+  `(?<![\\w.-])(${K_SEG})(["']?\\s*[:=]\\s*)(?:"([^"\\n]*)"|'([^'\\n]*)'|([^\\s"'&,;]+))`,
+  "gi",
+);
+
+const RE_XML_SECRET =
+  /<([\w:.-]*(?:password|passwd|passphrase|secret|token|apikey|api-key|privatekey|credential)[\w.-]*)(\s[^>]*)?>([^<]+)<\/\1>/gi;
+
+function luhn(digits) {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = digits.charCodeAt(digits.length - 1 - i) - 48;
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
+function stepSecrets(ctx, text) {
+  const S = "<SECRET>";
+  const secret = (re, fn) => {
+    text = sub(ctx, "secret", text, re, fn);
+  };
+  secret(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?-----END \1-----/g, () => S);
+  secret(/-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----(?:\r?\n[A-Za-z0-9+/=: -]*)*/g, () => S);
+  secret(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]*):([^\s/@]+)@/gi, (m, pre, pw) =>
+    isPlaceholder(pw) ? m : `${pre}:${S}@`,
+  );
+  for (const re of RE_TOKENS) secret(re, () => S);
+  secret(/\b(Bearer|Basic|Negotiate|Token)(\s+)([A-Za-z0-9._~+/=-]{8,})/g, (m, a, sp) => a + sp + S);
+  secret(/\$(?:1|2[abxy]?|5|6|7|8|9|y|gy|sha1|md5|argon2(?:id|i|d))\$[./A-Za-z0-9$=,+-]{8,}/g, () => "<HASH>");
+  secret(/\bSHA256:[A-Za-z0-9+/]{43}=?/g, () => "<FINGERPRINT>");
+  secret(/\bMD5(?::[0-9a-f]{2}){16}\b/gi, () => "<FINGERPRINT>");
+  secret(/\b(password|secret|key-string|key)(\s+)([05-9])(\s+)(\S+)/gi, (m, k, s1, lvl, s2, v) =>
+    isPlaceholder(v) ? m : k + s1 + lvl + s2 + S,
+  );
+  secret(/^([ \t]*(?:enable[ \t]+)?password[ \t]+)(?![05-9][ \t])(\S+)[ \t]*$/gim, (m, pre, v) =>
+    isPlaceholder(v) ? m : pre + S,
+  );
+  secret(/\b(snmp-server\s+community\s+)(\S+)/gi, (m, pre, v) => (isPlaceholder(v) ? m : pre + S));
+  secret(/\b(pre-shared-key\s+(?:(?:local|remote|ascii|hex)\s+)?(?:[05-9]\s+)?)(\S+)/gi, (m, pre, v) =>
+    isPlaceholder(v) ? m : pre + S,
+  );
+  secret(/\b(crypto\s+isakmp\s+key\s+(?:[05-9]\s+)?)(\S+)/gi, (m, pre, v) => (isPlaceholder(v) ? m : pre + S));
+  secret(RE_XML_SECRET, (m, tag, attrs) => `<${tag}${attrs || ""}>${S}</${tag}>`);
+  secret(RE_KV, (m, key, sep, dq, sq, bare) => {
+    const value = dq !== undefined ? dq : sq !== undefined ? sq : bare;
+    if (!value || isPlaceholder(value)) return m;
+    if (/^pwd$/i.test(key) && value.startsWith("/")) return m;
+    if (dq !== undefined) return `${key}${sep}"${S}"`;
+    if (sq !== undefined) return `${key}${sep}'${S}'`;
+    return key + sep + S;
+  });
+  secret(
+    /\b(card|carta|visa|mastercard|amex|maestro|credit|pan|cc)\b([^\n\d]{0,20})((?:\d[ -]?){12,18}\d)\b/gi,
+    (m, kw, gap, num) => {
+      const digits = num.replace(/\D/g, "");
+      if (digits.length < 13 || digits.length > 19 || !luhn(digits)) return m;
+      return kw + gap + "<CARD>";
+    },
+  );
+  return text;
+}
+
+/* ---------- 2. terms ---------- */
+
+function parseTerms(text) {
+  const out = [];
+  for (const line of parseLines(text)) {
+    const i = line.indexOf("=");
+    const real = (i >= 0 ? line.slice(0, i) : line).trim();
+    const fake = i >= 0 ? line.slice(i + 1).trim() : "";
+    if (real) out.push({ real, fake });
+  }
+  return out;
+}
+
+const variantBase = (fake) => fake.replace(/~\d+$/, "");
+
+function termBase(ctx, term) {
+  const { map } = ctx;
+  const key = term.real.toLowerCase();
+  const bucket = bucketOf(map.fwd, "term");
+  ctx.realKeys.add(key);
+  if (term.fake) {
+    if (bucket[key] !== term.fake) put(bucket, key, term.fake);
+    return term.fake;
+  }
+  if (hasOwn(bucket, key)) return bucket[key];
+  const used = new Set(Object.values(map.terms).map(variantBase));
+  for (const v of Object.values(bucket)) used.add(v);
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const n = (hasOwn(map.n, "term") ? map.n.term : 0) + 1;
+    put(map.n, "term", n);
+    const fake = `TERM_${n}`;
+    if (used.has(fake) || hasOwn(map.rev, fake) || ctx.realKeys.has(fake.toLowerCase())) continue;
+    put(bucket, key, fake);
+    return fake;
+  }
+  throw new Error(`no free placeholder for category "term" after ${MAX_ATTEMPTS} attempts`);
+}
+
+function termFake(ctx, term, found) {
+  const { map } = ctx;
+  const base = termBase(ctx, term);
+  if (hasOwn(map.terms, found) && variantBase(map.terms[found]) === base) return map.terms[found];
+  const used = new Set(Object.values(map.terms));
+  let fake = base;
+  for (let k = 1; used.has(fake); k++) fake = `${base}~${k}`;
+  put(map.terms, found, fake);
+  ctx.termFakes.add(fake.toLowerCase());
+  return fake;
+}
+
+function stepTerms(ctx, text, termsText) {
+  const byKey = new Map();
+  for (const t of parseTerms(termsText)) {
+    const key = t.real.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, t);
+  }
+  if (!byKey.size) return text;
+  const reals = [...byKey.keys()].sort((a, b) => b.length - a.length);
+  const re = new RegExp(reals.map(esc).join("|"), "gi");
+  return sub(ctx, "term", text, re, (found) => termFake(ctx, byKey.get(found.toLowerCase()), found));
+}
+
+/* ---------- 3. personal data ---------- */
+
+function ibanOk(s) {
+  const c = s.replace(/ /g, "").toUpperCase();
+  if (c.length < 15 || c.length > 34) return false;
+  let m = 0;
+  for (const ch of c.slice(4) + c.slice(0, 4)) {
+    const v = ch >= "A" && ch <= "Z" ? String(ch.charCodeAt(0) - 55) : ch;
+    for (const d of v) m = (m * 10 + (d.charCodeAt(0) - 48)) % 97;
+  }
+  return m === 1;
+}
+
+const CF_ODD = {
+  0: 1, 1: 0, 2: 5, 3: 7, 4: 9, 5: 13, 6: 15, 7: 17, 8: 19, 9: 21,
+  A: 1, B: 0, C: 5, D: 7, E: 9, F: 13, G: 15, H: 17, I: 19, J: 21, K: 2, L: 4, M: 18,
+  N: 20, O: 11, P: 3, Q: 6, R: 8, S: 12, T: 14, U: 16, V: 10, W: 22, X: 25, Y: 24, Z: 23,
+};
+
+function taxIdOk(s) {
+  const cf = s.toUpperCase();
+  let sum = 0;
+  for (let i = 0; i < 15; i++) {
+    const c = cf[i];
+    if (i % 2 === 0) sum += CF_ODD[c];
+    else sum += c >= "0" && c <= "9" ? c.charCodeAt(0) - 48 : c.charCodeAt(0) - 65;
+  }
+  return String.fromCharCode(65 + (sum % 26)) === cf[15];
+}
+
+const vatOk = (d) => /^\d{11}$/.test(d) && !/^0+$/.test(d) && luhn(d);
+
+function stepPii(ctx, text) {
+  const pii = (re, fn) => {
+    text = sub(ctx, "pii", text, re, fn);
+  };
+  pii(/\b([A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,3})?)\b/g, (m) =>
+    ibanOk(m) ? token(ctx, "iban", m, (n) => `IBAN_${n}`) : m,
+  );
+  pii(/\b[A-Z]{6}[0-9LMNPQRSTUV]{2}[ABCDEHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]\b/gi, (m) =>
+    taxIdOk(m) ? token(ctx, "taxid", m, (n) => `TAXID_${n}`) : m,
+  );
+  pii(/\bIT ?(\d{11})\b/g, (m, d) =>
+    vatOk(d) ? token(ctx, "vat", m, (n) => `VAT_${n}`, { key: "it" + d }) : m,
+  );
+  pii(
+    /\b((?:p\.?\s?iva|partita\s+iva|vat(?:\s+(?:number|no\.?|id))?|c\.f\.|cod(?:ice)?\.?\s*fisc(?:ale)?\.?)\s*[:.#-]?\s*)(\d{11})\b/gi,
+    (m, pre, d) => (vatOk(d) ? pre + token(ctx, "vat", d, (n) => `VAT_${n}`) : m),
+  );
+  const phone = (m) => token(ctx, "phone", m, (n) => `PHONE_${n}`, { key: m.replace(/\D/g, "") });
+  pii(
+    /\b((?:tel(?:efono)?|phone|mobile|cell(?:ulare)?|cel|fax|mob)\.?\s*(?:n(?:o|r|um)?\.?\s*)?[:=]?\s*)(\+?[\d(][\d ()./-]{5,18}\d)/gi,
+    (m, pre, num) => (num.replace(/\D/g, "").length >= 6 ? pre + phone(num) : m),
+  );
+  pii(/(?<![\w+])((?:\+\d{1,3}|0039)[ .-]?\(?\d{1,4}\)?(?:[ .-]?\d){5,10})(?![\w.]?\d)/g, (m) => phone(m));
+  pii(/(?<![\w.:/-])3\d{2}[ .]\d{3}[ .]?\d{3,4}(?![\w:/-]|\.\d)/g, (m) => phone(m));
+  return text;
+}
+
+/* ---------- 4. MAC addresses ---------- */
+
+function macFake(ctx, original, hex, format) {
+  if (/^0+$/.test(hex) || /^f+$/i.test(hex)) return original;
+  if (hasOwn(ctx.map.rev, original) && !ctx.realKeys.has(hex)) return original;
+  const fakeHex = token(ctx, "mac", original, (n) => hex.slice(0, 6) + n.toString(16).padStart(6, "0"), {
+    key: hex,
+    rev: false,
+  });
+  const fake = format(/[A-F]/.test(original) ? fakeHex.toUpperCase() : fakeHex);
+  alias(ctx, fake, original);
+  return fake;
+}
+
+function stepMac(ctx, text) {
+  text = sub(
+    ctx,
+    "mac",
+    text,
+    /(?<![\w:.-])([0-9A-Fa-f]{2})([:-])((?:[0-9A-Fa-f]{2}\2){4}[0-9A-Fa-f]{2})(?![\w:-]|\.\w)/g,
+    (m, first, sep) => {
+      const hex = m.split(sep).join("").toLowerCase();
+      return macFake(ctx, m, hex, (h) => h.match(/../g).join(sep));
+    },
+  );
+  return sub(
+    ctx,
+    "mac",
+    text,
+    /(?<![\w.:-])[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}(?![\w:-]|\.\w)/g,
+    (m) => macFake(ctx, m, m.split(".").join("").toLowerCase(), (h) => h.match(/.{4}/g).join(".")),
+  );
+}
+
+/* ---------- 5-6. hosts and email ---------- */
+
+function userTok(ctx, name, force = false) {
+  const l = name.toLowerCase();
+  if ((!ctx.enabled.user && !force) || SYSTEM.has(l) || isKept(ctx, name)) return name;
+  if (/^\d+$/.test(name) || isPlaceholder(name)) return name;
+  return token(ctx, "user", name, (n) => `user${n}`);
+}
+
+function short(ctx, label) {
+  const l = label.toLowerCase();
+  if (!label || label.startsWith("_") || /^\d+$/.test(label)) return label;
+  if (COMMON.has(l) || SYSTEM.has(l) || l.startsWith("localhost") || isKept(ctx, label)) return label;
+  if (ctx.termFakes.has(l)) return label;
+  if (!label.includes("-")) return token(ctx, "srv", label, (n) => `srv${n}`);
+  return label
+    .split("-")
+    .map((p) =>
+      p.length >= 4 &&
+      /[A-Za-z]/.test(p) &&
+      !COMMON_PARTS.has(p.toLowerCase()) &&
+      !ctx.termFakes.has(p.toLowerCase()) &&
+      !p.includes("$")
+        ? token(ctx, "part", p, (n) => `part${n}`)
+        : p,
+    )
+    .join("-");
+}
+
+function host(ctx, name) {
+  if (FAKE_DOMAIN.test(name) || isKept(ctx, name) || /^localhost(\.|$)/i.test(name)) return name;
+  const labels = name.split(".");
+  if (labels.some((l) => !l) || /^\d+$/.test(labels[labels.length - 1])) return name;
+  if (labels.length === 1) return short(ctx, name);
+  const z = labels.length >= 3 && SLD2.has(labels.slice(-2).join(".").toLowerCase()) ? 3 : 2;
+  const zone = labels.slice(-z).join(".");
+  const fakeZone = token(ctx, "zone", zone, (n) => `dom${n}.invalid`);
+  return [...labels.slice(0, -z).map((l) => short(ctx, l)), fakeZone].join(".");
+}
+
+function hostAny(ctx, name) {
+  if (/^[\d.]+$/.test(name) || name.includes(":") || isPlaceholder(name)) return name;
+  if (!name.includes(".")) return short(ctx, name);
+  const trailing = name.endsWith(".") ? "." : "";
+  return host(ctx, trailing ? name.slice(0, -1) : name) + trailing;
+}
+
+const LABEL = "[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?";
+const RE_FQDN = new RegExp(`(?<![\\w.-])((?:${LABEL}\\.)+([A-Za-z]{2,63}))(?![\\w(-]|\\.[A-Za-z0-9])`, "g");
+const HOSTNAME = "[A-Za-z0-9_](?:[\\w.-]*[A-Za-z0-9_])?";
+const RE_HOSTS_LINE = new RegExp(
+  `^([ \\t]*(?:\\d{1,3}(?:\\.\\d{1,3}){3}|[0-9A-Fa-f]*:[0-9A-Fa-f:.]*)[ \\t]+)(${HOSTNAME}(?:[ \\t]+${HOSTNAME})*)(?=[ \\t]*(?:#.*)?\\r?$)`,
+  "gm",
+);
+
+function stepEmail(ctx, text) {
+  return sub(
+    ctx,
+    "email",
+    text,
+    /(?<![\w.%+-])([A-Za-z0-9._%+-]+)@((?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,})(?![\w-]|\.[A-Za-z0-9])/g,
+    (m, local, domain) => {
+      const d = ctx.enabled.host ? host(ctx, domain) : domain;
+      return `${userTok(ctx, local, true)}@${d}`;
+    },
+  );
+}
+
+function stepHost(ctx, text) {
+  const h = (re, fn) => {
+    text = sub(ctx, "host", text, re, fn);
+  };
+  h(RE_FQDN, (m, name, tld) => {
+    const t = tld.toLowerCase();
+    return TLD.has(t) && !FILE_EXT.has(t) ? host(ctx, name) : m;
+  });
+  h(
+    /^((?:[A-Z][a-z]{2} [ \d]\d \d{2}:\d{2}:\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?) )([A-Za-z0-9_][\w.-]*)(?= [\w./-]+(?:\[\d+\])?:)/gm,
+    (m, pre, name) => pre + hostAny(ctx, name),
+  );
+  h(/((?<![\w:\\])\\\\)([A-Za-z0-9_][\w.-]*)(?=\\)/g, (m, pre, name) => pre + hostAny(ctx, name));
+  h(RE_HOSTS_LINE, (m, pre, names) => pre + names.replace(/\S+/g, (n) => hostAny(ctx, n)));
+  h(/\[([A-Za-z0-9_][\w.-]*)@([A-Za-z0-9_][\w.-]*)((?:\s[^\]\n]*)?)\]([#$])/g, (m, u, name, rest, p) =>
+    `[${userTok(ctx, u)}@${hostAny(ctx, name)}${rest}]${p}`,
+  );
+  h(/(?<![\w.@%+-])([A-Za-z_][\w.-]*)@([A-Za-z][\w-]*)(?![\w.@-])/g, (m, u, name) =>
+    `${userTok(ctx, u)}@${hostAny(ctx, name)}`,
+  );
+  h(
+    /\b(ssh|ssh-copy-id|ping6?|telnet|traceroute6?|tracert|nslookup|dig)((?:\s+-{1,2}[A-Za-z][\w-]*(?:[ =](?![-/])[^\s@]+)?)*\s+)(?:([A-Za-z_][\w.-]*)@)?([A-Za-z][\w-]*)(?![\w.@-])/g,
+    (m, cmd, mid, u, name) => {
+      if (!/[\d-]/.test(name)) return m;
+      return cmd + mid + (u ? `${userTok(ctx, u)}@` : "") + short(ctx, name);
+    },
+  );
+  h(/\b(host|added)(\s+)'([^'\s]+)'/gi, (m, kw, sp, value) =>
+    `${kw}${sp}'${value
+      .split(",")
+      .map((p) => (/^\[?[\d.:a-fA-F\]]+$/.test(p) ? p : hostAny(ctx, p)))
+      .join(",")}'`,
+  );
+  h(
+    /\b(hostname|computername|computer_name|servername|server_name|nodename|node_name|machinename|machine|workstation|fqdn)(["']?\s*[:=]\s*["']?)([A-Za-z0-9_](?:[\w.-]*[A-Za-z0-9_])?)/gi,
+    (m, k, sep, value) => k + sep + hostAny(ctx, value),
+  );
+  h(/\bDC=[\w-]+(?:\s*,\s*DC=[\w-]+)+/gi, (m) => {
+    const parts = [...m.matchAll(/DC=([\w-]+)/gi)].map((x) => x[1]);
+    const domain = parts.join(".");
+    const fake = host(ctx, domain);
+    if (fake === domain) return m;
+    const sep = m.match(/\s*,\s*/)[0];
+    const prefix = m.slice(0, 3);
+    const out = fake
+      .split(".")
+      .map((l) => prefix + l)
+      .join(sep);
+    alias(ctx, out, m);
+    return out;
+  });
+  return text;
+}
+
+/* ---------- 7. users ---------- */
+
+function stepUser(ctx, text) {
+  const u = (re, fn) => {
+    text = sub(ctx, "user", text, re, fn);
+  };
+  u(/(?<![\w\\./:-])([A-Z][A-Z0-9-]{0,14})\\([A-Za-z0-9._$-]+)(?![\w\\$-])/g, (m, dom, user) => {
+    if (NETBIOS_SKIP.has(dom) || SYSTEM.has(dom.toLowerCase())) return m;
+    const d = token(ctx, "netbios", dom, (n) => `DOM${n}`);
+    return `${d}\\${userTok(ctx, user)}`;
+  });
+  u(/(\/home\/|\/Users\/|[A-Za-z]:\\{1,2}Users\\{1,2}|[A-Za-z]:\/Users\/)([^\\/\s"':;,]+)/g, (m, pre, user) =>
+    pre + userTok(ctx, user),
+  );
+  u(
+    /(?<![\w.-])((?:[\w-]*[_-])?(?:user(?:name|_?id)?|login|logon|uid|owner|account_?name|samaccountname|upn|principal))(["']?\s*[:=]\s*["']?)([^\s"',;()\]}&]+)/gi,
+    (m, k, sep, value) => {
+      if (/[\\/=]/.test(value) || isPlaceholder(value)) return m;
+      const at = value.indexOf("@");
+      if (at > 0) return k + sep + userTok(ctx, value.slice(0, at)) + "@" + hostAny(ctx, value.slice(at + 1));
+      return k + sep + userTok(ctx, value);
+    },
+  );
+  u(
+    /\b(for (?:invalid )?user |[Ii]nvalid user |(?:password|publickey|keyboard-interactive(?:\/pam)?|hostbased|gssapi-with-mic|none) for (?:invalid user )?)([\w.@$-]+)(?= from\b)/g,
+    (m, pre, user) => pre + userTok(ctx, user),
+  );
+  u(/\b(session (?:opened|closed) for user )([\w.$-]+)/g, (m, pre, user) => pre + userTok(ctx, user));
+  u(/\b(CN|OU)=((?:\\.|[^,=+<>#;"\\\n])+)/gi, (m, kind, raw) => {
+    const value = raw.trim();
+    const l = value.toLowerCase();
+    if (!value || LDAP_STD.has(l) || SYSTEM.has(l) || isKept(ctx, value)) return m;
+    if (/^[{*]/.test(value) || /^[\w-]+(?:\.[\w-]+)+$/.test(value) || isPlaceholder(value)) return m;
+    const cat = kind.toLowerCase();
+    return kind + "=" + token(ctx, cat, value, (n) => `${cat}${n}`) + raw.slice(raw.trimEnd().length);
+  });
+  return text;
+}
+
+/* ---------- 8. GUIDs and SIDs ---------- */
+
+function stepId(ctx, text) {
+  text = sub(
+    ctx,
+    "id",
+    text,
+    /(?<![\w-])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}(?![\w-])/g,
+    (m) =>
+      m.startsWith("0")
+        ? m
+        : token(ctx, "guid", m, (n) => `00000000-0000-0000-0000-${n.toString(16).padStart(12, "0")}`),
+  );
+  return sub(ctx, "id", text, /\b(S-1-5-21-\d+-\d+-\d+)((?:-\d+)?)\b/g, (m, domain, rid) =>
+    token(ctx, "sid", domain, (n) => `S-1-5-21-1000-1000-${1000 + n}`) + rid,
+  );
+}
+
+/* ---------- 9. IPv6 ---------- */
+
+function expand6(s) {
+  const halves = s.toLowerCase().split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  if (halves.length === 1 && head.length !== 8) return null;
+  if (halves.length === 2 && head.length + tail.length > 7) return null;
+  const groups = [...head, ...Array(8 - head.length - tail.length).fill("0"), ...tail];
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.map((g) => g.padStart(4, "0"));
+}
+
+function stepIp6(ctx, text) {
+  return sub(ctx, "ip6", text, /(?<![\w:.])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:]|\.\d)/g, (m) => {
+    const g = expand6(m);
+    if (!g || !/\d/.test(m)) return m;
+    const full = g.join(":");
+    if (/^0000:0000:0000:0000:0000:0000:0000:000[01]$/.test(full) || full.startsWith("2001:0db8:")) return m;
+    if (hasOwn(ctx.map.rev, m) && !ctx.realKeys.has(full)) return m;
+    const nets = bucketOf(ctx.map.fwd, "ip6net");
+    const netKey = g.slice(0, 4).join(":");
+    if (!hasOwn(nets, netKey)) {
+      const n = (hasOwn(ctx.map.n, "ip6net") ? ctx.map.n.ip6net : 0) + 1;
+      put(ctx.map.n, "ip6net", n);
+      put(nets, netKey, n.toString(16));
+      ctx.realKeys.add(netKey);
+    }
+    const net = nets[netKey];
+    return token(ctx, "ip6", m, (n) => `2001:db8:${net}::${n.toString(16)}`, { key: full, counter: `ip6:${net}` });
+  });
+}
+
+/* ---------- 10. IPv4 ---------- */
+
+function isMask(a, b, c, d) {
+  const n = ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+  const inv = ~n >>> 0;
+  return n !== 0 && (inv & (inv + 1)) === 0;
+}
+
+const specialNet = (a, b) => a === 0 || a === 127 || a >= 224 || (a === 169 && b === 254);
+
+function fakeNet(k) {
+  return `198.${18 + (k >> 8)}.${k & 255}`;
+}
+
+function net24(ctx, prefix) {
+  const { map } = ctx;
+  if (hasOwn(map.subnets, prefix)) return map.subnets[prefix];
+  if (ctx.fakeNets.has(prefix)) return null;
+  let k = hasOwn(map.n, "ip24") ? map.n.ip24 : 0;
+  while (k < FAKE_NETS) {
+    const fake = fakeNet(k);
+    k++;
+    if (hasOwn(map.subnets, fake) || ctx.fakeNets.has(fake) || ctx.reservedNets.has(fake)) continue;
+    put(map.n, "ip24", k);
+    put(map.subnets, prefix, fake);
+    ctx.fakeNets.add(fake);
+    return fake;
+  }
+  put(map.n, "ip24", k);
+  throw new Error("fake IPv4 space exhausted, reset the map");
+}
+
+const octets = (...xs) => xs.map(Number);
+
+function stepIp(ctx, text) {
+  for (const m of text.matchAll(/(?<![\w.\\])198(\\?\.)(1[89])\1(\d{1,3})\1\d/g)) {
+    const prefix = `198.${m[2]}.${m[3]}`;
+    if (!ctx.fakeNets.has(prefix)) ctx.reservedNets.add(prefix);
+  }
+  text = sub(
+    ctx,
+    "ip",
+    text,
+    /(?<![\w.\\])(\d{1,3})(\\?\.)(\d{1,3})\2(\d{1,3})\2(\d{1,3})(?!\w|\\?\.\d)/g,
+    (m, a1, sep, b1, c1, d1) => {
+      const [a, b, c, d] = octets(a1, b1, c1, d1);
+      if ([a, b, c, d].some((x) => x > 255) || specialNet(a, b) || isMask(a, b, c, d)) return m;
+      const fake = net24(ctx, `${a}.${b}.${c}`);
+      return fake ? fake.split(".").join(sep) + sep + d1 : m;
+    },
+  );
+  const prefix = (m, a1, b1, c1, sep) => {
+    const [a, b, c] = octets(a1, b1, c1);
+    if ([a, b, c].some((x) => x > 255) || specialNet(a, b)) return m;
+    const fake = net24(ctx, `${a}.${b}.${c}`);
+    return fake ? fake.split(".").join(sep) + sep : m;
+  };
+  text = sub(ctx, "ip", text, /(?<![\w.\\])(\d{1,3})\\\.(\d{1,3})\\\.(\d{1,3})\\\.(?!\d)/g, (m, a, b, c) =>
+    prefix(m, a, b, c, "\\."),
+  );
+  return sub(ctx, "ip", text, /(?<![\w.\\])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(?=["'*x)|\]\\])/g, (m, a, b, c) =>
+    prefix(m, a, b, c, "."),
+  );
+}
+
+/* ---------- 11. known names found on their own ---------- */
+
+function stepKnown(ctx, text) {
+  const { fwd } = ctx.map;
+  const names = new Map();
+  if (ctx.enabled.host && fwd.srv) {
+    for (const [k, v] of Object.entries(fwd.srv)) if (k.length >= 3 && /[\d-]/.test(k)) names.set(k, [v, "host"]);
+  }
+  if (ctx.enabled.user && fwd.user) {
+    for (const [k, v] of Object.entries(fwd.user)) if (k.length >= 4 && !names.has(k)) names.set(k, [v, "user"]);
+  }
+  const replaceAll = (entries, before, after) => {
+    if (!entries.size) return;
+    const keys = [...entries.keys()].sort((a, b) => b.length - a.length).map(esc);
+    const re = new RegExp(`${before}(?:${keys.join("|")})${after}`, "gi");
+    text = text.replace(re, (m) => {
+      const [fake, cat] = entries.get(m.toLowerCase());
+      ctx.stats[cat] = (ctx.stats[cat] || 0) + 1;
+      return fake;
+    });
+  };
+  replaceAll(names, "(?<![\\w<-])", "(?![\\w>-])");
+  if (ctx.enabled.host && fwd.part) {
+    const parts = new Map(Object.entries(fwd.part).map(([k, v]) => [k, [v, "host"]]));
+    replaceAll(parts, "(?<![A-Za-z0-9<])", "(?![A-Za-z0-9>])");
+  }
+  return text;
+}
+
+/* ---------- public API ---------- */
+
+function anonymize(text, map, termsText, opts) {
+  const ctx = context(map, opts || {});
+  const e = ctx.enabled;
+  let t = String(text);
+  if (e.banner) t = stepBanner(ctx, t);
+  t = stepSecrets(ctx, t);
+  t = stepTerms(ctx, t, termsText === undefined ? TERMS_DEFAULT : termsText);
+  if (e.pii) t = stepPii(ctx, t);
+  if (e.mac) t = stepMac(ctx, t);
+  if (e.email) t = stepEmail(ctx, t);
+  if (e.host) t = stepHost(ctx, t);
+  if (e.user) t = stepUser(ctx, t);
+  if (e.id) t = stepId(ctx, t);
+  if (e.ip6) t = stepIp6(ctx, t);
+  if (e.ip) t = stepIp(ctx, t);
+  t = stepKnown(ctx, t);
+  return { text: t, stats: ctx.stats };
+}
+
+const RE_FAKE_PREFIX = /(?<![\w.\\])198(\\?\.)(1[89])\1(\d{1,3})\1/g;
+
+function invertSubnets(map) {
+  const inv = new Map();
+  for (const [real, fake] of Object.entries(map.subnets)) inv.set(fake, real);
+  return inv;
+}
+
+function revIndex(map) {
+  const fakes = Object.keys(map.rev).sort((a, b) => b.length - a.length);
+  const lower = new Map();
+  for (const f of fakes) if (!lower.has(f.toLowerCase())) lower.set(f.toLowerCase(), map.rev[f]);
+  return { fakes, lower };
+}
+
+function restore(text, map) {
+  checkMap(map);
+  let count = 0;
+  let t = String(text);
+  const inv = invertSubnets(map);
+  if (inv.size) {
+    t = t.replace(RE_FAKE_PREFIX, (m, sep, b, c) => {
+      const real = inv.get(`198.${b}.${c}`);
+      if (!real) return m;
+      count++;
+      return real.split(".").join(sep) + sep;
+    });
+  }
+  const { fakes, lower } = revIndex(map);
+  if (fakes.length) {
+    const re = new RegExp(`(?<!\\w)(?:${fakes.map(esc).join("|")})(?!\\w)`, "gi");
+    t = t.replace(re, (m) => {
+      count++;
+      return lower.get(m.toLowerCase());
+    });
+  }
+  const terms = Object.entries(map.terms).sort((a, b) => b[1].length - a[1].length);
+  for (const [found, fake] of terms) {
+    const parts = t.split(fake);
+    if (parts.length > 1) {
+      count += parts.length - 1;
+      t = parts.join(found);
+    }
+  }
+  return { text: t, count };
+}
+
+// Splits anonymized text into plain and replaced segments, for highlighting.
+function mark(text, map) {
+  checkMap(map);
+  const inv = invertSubnets(map);
+  const { fakes, lower } = revIndex(map);
+  const termFakes = new Map();
+  for (const [found, fake] of Object.entries(map.terms)) if (!termFakes.has(fake)) termFakes.set(fake, found);
+  const alts = [`(${PLACEHOLDERS.map(esc).join("|")})`];
+  alts.push("((?<![\\w.\\\\])198(?:\\\\?\\.)1[89](?:\\\\?\\.)\\d{1,3}(?:\\\\?\\.)\\d{0,3})");
+  alts.push(fakes.length ? `(?<!\\w)(${fakes.map(esc).join("|")})(?!\\w)` : "(?!)");
+  const tf = [...termFakes.keys()].sort((a, b) => b.length - a.length);
+  alts.push(tf.length ? `(${tf.map(esc).join("|")})` : "(?!)");
+  const re = new RegExp(alts.join("|"), "gi");
+  const out = [];
+  let last = 0;
+  for (const m of String(text).matchAll(re)) {
+    let seg = null;
+    if (m[1]) seg = { text: m[0], kind: "secret" };
+    else if (m[2]) {
+      const parts = m[2].split(/\\?\./);
+      const real = inv.get(parts.slice(0, 3).join("."));
+      if (real) {
+        const sep = m[2].includes("\\.") ? "\\." : ".";
+        seg = { text: m[0], kind: "fake", real: real.split(".").join(sep) + sep + parts[3] };
+      }
+    } else if (m[3]) seg = { text: m[0], kind: "fake", real: lower.get(m[3].toLowerCase()) };
+    else if (m[4]) seg = { text: m[0], kind: "fake", real: termFakes.get(m[4]) };
+    if (!seg || seg.real === undefined && seg.kind === "fake") continue;
+    if (m.index > last) out.push({ text: text.slice(last, m.index) });
+    out.push(seg);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { VERSION, ENABLED_DEFAULT, TERMS_DEFAULT, KEEP_DEFAULT, newMap, anonymize, restore, mark };
+}
+</script>
+
+<script id="ui">
+(() => {
+  "use strict";
+
+  const HOST = document.documentElement.dataset.host === "desktop" ? "desktop" : "browser";
+  const CATEGORIES = Object.keys(ENABLED_DEFAULT);
+
+  const I18N = {
+    en: {
+      language: "Language",
+      langAuto: "System default",
+      navAnonymize: "Anonymize",
+      navTerms: "Terms",
+      navKeep: "Keep as is",
+      navMappings: "Mappings",
+      navSettings: "Settings",
+      input: "Input",
+      output: "Output",
+      anonymizeCopy: "Anonymize and copy",
+      restoreCopy: "Restore and copy",
+      paste: "Paste",
+      clear: "Clear",
+      copied: "Copied to the clipboard.",
+      restoredN: "{0} values restored and copied.",
+      anonymizedN: "{0} replacements, copied to the clipboard.",
+      nothing: "Nothing to process.",
+      copyFailed: "Could not copy to the clipboard.",
+      pasteFailed: "Could not read the clipboard; paste with Ctrl+V.",
+      removedTip: "removed, not restorable",
+      termsHint:
+        "One term per line: \"real\" or \"real=fake\". Terms are always replaced, case-insensitively and also inside longer words (for example a customer name inside a hostname). Lines starting with # are comments.",
+      keepHint: "Domains and names that are never replaced. A domain also covers its subdomains.",
+      settingsHint: "Categories to detect. Secrets and terms are always processed.",
+      saved: "Saved",
+      unsaved: "Unsaved changes",
+      notSaved: "Not saved: {0}",
+      search: "Search fake or real value",
+      colFake: "Fake",
+      colReal: "Real",
+      mapCount: "{0} mappings",
+      mapCountLimited: "Showing {0} of {1} mappings",
+      resetMap: "Reset map",
+      resetConfirm: "Click again to delete all mappings",
+      resetDone: "Map reset.",
+      mapInvalid: "The saved map could not be loaded ({0}). Anonymize is disabled until you reset the map in Settings.",
+      hkAnonymize: "anonymize clipboard",
+      hkRestore: "restore clipboard",
+      browserNote: "Data stays in this browser.",
+      cat_banner: "ASCII banners",
+      cat_pii: "Personal data (IBAN, tax ID, VAT, phone)",
+      cat_mac: "MAC addresses",
+      cat_email: "Email addresses",
+      cat_host: "Hostnames and domains",
+      cat_user: "Users, LDAP CN/OU",
+      cat_id: "GUIDs and SIDs",
+      cat_ip6: "IPv6 addresses",
+      cat_ip: "IPv4 addresses",
+      stat_secret: "secret",
+      stat_term: "term",
+      stat_banner: "banner",
+      stat_pii: "pii",
+      stat_mac: "mac",
+      stat_email: "email",
+      stat_host: "host",
+      stat_user: "user",
+      stat_id: "id",
+      stat_ip6: "ipv6",
+      stat_ip: "ipv4",
+    },
+    it: {
+      language: "Lingua",
+      langAuto: "Predefinita di sistema",
+      navAnonymize: "Anonimizza",
+      navTerms: "Termini",
+      navKeep: "Lascia invariati",
+      navMappings: "Corrispondenze",
+      navSettings: "Impostazioni",
+      input: "Testo",
+      output: "Risultato",
+      anonymizeCopy: "Anonimizza e copia",
+      restoreCopy: "Ripristina e copia",
+      paste: "Incolla",
+      clear: "Svuota",
+      copied: "Copiato negli appunti.",
+      restoredN: "{0} valori ripristinati e copiati.",
+      anonymizedN: "{0} sostituzioni, copiate negli appunti.",
+      nothing: "Niente da elaborare.",
+      copyFailed: "Impossibile copiare negli appunti.",
+      pasteFailed: "Impossibile leggere gli appunti; incolla con Ctrl+V.",
+      removedTip: "rimosso, non ripristinabile",
+      termsHint:
+        "Un termine per riga: \"reale\" oppure \"reale=finto\". I termini vengono sempre sostituiti, senza distinzione di maiuscole e anche dentro parole più lunghe (per esempio il nome di un cliente dentro un hostname). Le righe che iniziano con # sono commenti.",
+      keepHint: "Domini e nomi che non vengono mai sostituiti. Un dominio comprende anche i suoi sottodomini.",
+      settingsHint: "Categorie da rilevare. Segreti e termini vengono sempre elaborati.",
+      saved: "Salvato",
+      unsaved: "Modifiche non salvate",
+      notSaved: "Non salvato: {0}",
+      search: "Cerca valore finto o reale",
+      colFake: "Finto",
+      colReal: "Reale",
+      mapCount: "{0} corrispondenze",
+      mapCountLimited: "{0} di {1} corrispondenze",
+      resetMap: "Azzera la mappa",
+      resetConfirm: "Clicca di nuovo per cancellare tutte le corrispondenze",
+      resetDone: "Mappa azzerata.",
+      mapInvalid: "Impossibile caricare la mappa salvata ({0}). Anonimizza è disattivato finché non azzeri la mappa da Impostazioni.",
+      hkAnonymize: "anonimizza appunti",
+      hkRestore: "ripristina appunti",
+      browserNote: "I dati restano in questo browser.",
+      cat_banner: "Banner ASCII",
+      cat_pii: "Dati personali (IBAN, CF, P.IVA, telefono)",
+      cat_mac: "Indirizzi MAC",
+      cat_email: "Indirizzi email",
+      cat_host: "Hostname e domini",
+      cat_user: "Utenti, CN/OU LDAP",
+      cat_id: "GUID e SID",
+      cat_ip6: "Indirizzi IPv6",
+      cat_ip: "Indirizzi IPv4",
+    },
+  };
+  const SYSTEM_LANG = (navigator.language || "en").toLowerCase().startsWith("it") ? "it" : "en";
+  let LANG = SYSTEM_LANG;
+
+  function t(key, ...args) {
+    const s = I18N[LANG][key] ?? I18N.en[key] ?? key;
+    return args.reduce((acc, v, i) => acc.replace(`{${i}}`, String(v)), s);
+  }
+
+  const $ = (id) => document.getElementById(id);
+
+  const state = {
+    map: newMap(),
+    mapBroken: false,
+    terms: TERMS_DEFAULT,
+    keep: KEEP_DEFAULT,
+    enabled: { ...ENABLED_DEFAULT },
+    lang: "auto",
+  };
+
+  /* ---------- host backends ---------- */
+
+  const FILES = ["map.json", "terms.txt", "keep.txt", "settings.json"];
+
+  async function browserCopy(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (_) {
+      // Clipboard API unavailable (e.g. file:// in some browsers): fall back below.
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (!ok) throw new Error(t("copyFailed"));
+  }
+
+  const backends = {
+    browser: {
+      async load() {
+        const out = {};
+        for (const f of FILES) {
+          try {
+            out[f] = localStorage.getItem(`topomask.${f}`);
+          } catch (_) {
+            out[f] = null;
+          }
+        }
+        return out;
+      },
+      async save(name, text) {
+        localStorage.setItem(`topomask.${name}`, text);
+      },
+      copy: (text) => browserCopy(text),
+      paste: () => navigator.clipboard.readText(),
+      ready() {},
+    },
+    desktop: {
+      load: () => window.pywebview.api.state(),
+      save: (name, text) => window.pywebview.api.save(name, text),
+      copy: (text, priv) => window.pywebview.api.copy(text, Boolean(priv)),
+      paste: () => window.pywebview.api.paste(),
+      ready: () => window.pywebview.api.ready(),
+    },
+  };
+  const backend = backends[HOST];
+
+  const errorText = (e) => (e && e.message ? e.message : String(e));
+
+  /* ---------- persistence ---------- */
+
+  let mapSaving = Promise.resolve();
+
+  function persistMap() {
+    const data = JSON.stringify(state.map);
+    mapSaving = mapSaving
+      .then(() => backend.save("map.json", data))
+      .catch((e) => setStatus(t("notSaved", errorText(e)), "err"));
+    return mapSaving;
+  }
+
+  function persistSettings() {
+    return backend.save("settings.json", JSON.stringify({ enabled: state.enabled, lang: state.lang }));
+  }
+
+  function bindEditor(id, file, key) {
+    const el = $(id);
+    const status = $(`${id}-status`);
+    let timer = null;
+    let dirty = false;
+    const setEditorStatus = (text, cls) => {
+      status.textContent = text;
+      status.className = `status ${cls || ""}`;
+    };
+    const save = async () => {
+      clearTimeout(timer);
+      if (!dirty) return;
+      dirty = false;
+      state[key] = el.value;
+      try {
+        await backend.save(file, el.value);
+        setEditorStatus(t("saved"), "ok");
+      } catch (e) {
+        dirty = true;
+        setEditorStatus(t("notSaved", errorText(e)), "err");
+      }
+    };
+    el.addEventListener("input", () => {
+      dirty = true;
+      state[key] = el.value;
+      setEditorStatus(t("unsaved"));
+      clearTimeout(timer);
+      timer = setTimeout(save, 500);
+    });
+    el.addEventListener("blur", save);
+  }
+
+  /* ---------- actions ---------- */
+
+  function setStatus(text, cls) {
+    const el = $("status");
+    el.textContent = text;
+    el.className = `status ${cls || ""}`;
+  }
+
+  function runAnonymize(text) {
+    if (state.mapBroken) throw new Error(t("mapInvalid", "map.json"));
+    const draft = structuredClone(state.map);
+    const result = anonymize(text, draft, state.terms, { keep: state.keep, enabled: state.enabled });
+    state.map = draft;
+    persistMap();
+    renderMappings();
+    return result;
+  }
+
+  const total = (stats) => Object.values(stats).reduce((a, b) => a + b, 0);
+
+  function summary(stats) {
+    const n = total(stats);
+    const parts = Object.entries(stats).map(([k, v]) => `${v} ${t(`stat_${k}`)}`);
+    return parts.length ? `${t("anonymizedN", n)} (${parts.join(", ")})` : t("anonymizedN", 0);
+  }
+
+  function renderOutput(text) {
+    const out = $("output");
+    out.replaceChildren();
+    for (const seg of mark(text, state.map)) {
+      if (!seg.kind) {
+        out.append(document.createTextNode(seg.text));
+        continue;
+      }
+      const m = document.createElement("mark");
+      m.textContent = seg.text;
+      if (seg.kind === "secret") {
+        m.className = "secret";
+        m.title = t("removedTip");
+      } else {
+        m.title = seg.real;
+      }
+      out.append(m);
+    }
+  }
+
+  function renderChips(stats) {
+    const box = $("chips");
+    box.replaceChildren();
+    for (const [k, v] of Object.entries(stats)) {
+      const chip = document.createElement("span");
+      chip.className = k === "secret" ? "chip secret" : "chip";
+      chip.textContent = `${t(`stat_${k}`)} ${v}`;
+      box.append(chip);
+    }
+  }
+
+  async function onAnonymize() {
+    const text = $("input").value;
+    if (!text.trim()) return setStatus(t("nothing"));
+    try {
+      const result = runAnonymize(text);
+      renderOutput(result.text);
+      renderChips(result.stats);
+      await backend.copy(result.text, false);
+      setStatus(t("anonymizedN", total(result.stats)), "ok");
+    } catch (e) {
+      setStatus(errorText(e), "err");
+    }
+  }
+
+  async function onRestore() {
+    const text = $("input").value;
+    if (!text.trim()) return setStatus(t("nothing"));
+    try {
+      const result = restore(text, state.map);
+      const out = $("output");
+      out.replaceChildren(document.createTextNode(result.text));
+      $("chips").replaceChildren();
+      await backend.copy(result.text, true);
+      setStatus(t("restoredN", result.count), "ok");
+    } catch (e) {
+      setStatus(errorText(e), "err");
+    }
+  }
+
+  async function onPaste() {
+    try {
+      $("input").value = await backend.paste();
+      $("input").focus();
+    } catch (_) {
+      setStatus(t("pasteFailed"), "err");
+    }
+  }
+
+  window.topomaskHotkey = (action, text) => {
+    try {
+      if (action === "anonymize") {
+        const result = runAnonymize(String(text));
+        return JSON.stringify({ text: result.text, summary: summary(result.stats) });
+      }
+      if (action === "restore") {
+        const result = restore(String(text), state.map);
+        return JSON.stringify({ text: result.text, summary: t("restoredN", result.count) });
+      }
+      return JSON.stringify({ error: `unknown action: ${action}` });
+    } catch (e) {
+      return JSON.stringify({ error: errorText(e) });
+    }
+  };
+
+  /* ---------- mappings ---------- */
+
+  const MAX_ROWS = 1000;
+
+  function mappingRows() {
+    const rows = Object.entries(state.map.rev);
+    for (const [real, fake] of Object.entries(state.map.subnets)) rows.push([`${fake}.x`, `${real}.x`]);
+    for (const [found, fake] of Object.entries(state.map.terms)) rows.push([fake, found]);
+    return rows.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  }
+
+  function renderMappings() {
+    const q = $("search").value.trim().toLowerCase();
+    const all = mappingRows();
+    const rows = q ? all.filter(([f, r]) => f.toLowerCase().includes(q) || r.toLowerCase().includes(q)) : all;
+    const body = $("map-rows");
+    body.replaceChildren();
+    for (const [fake, real] of rows.slice(0, MAX_ROWS)) {
+      const tr = document.createElement("tr");
+      for (const v of [fake, real]) {
+        const td = document.createElement("td");
+        td.textContent = v;
+        tr.append(td);
+      }
+      body.append(tr);
+    }
+    $("map-count").textContent =
+      rows.length > MAX_ROWS ? t("mapCountLimited", MAX_ROWS, rows.length) : t("mapCount", rows.length);
+  }
+
+  /* ---------- settings ---------- */
+
+  function renderSettings() {
+    const box = $("categories");
+    box.replaceChildren();
+    for (const cat of CATEGORIES) {
+      const label = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = state.enabled[cat] !== false;
+      cb.addEventListener("change", async () => {
+        state.enabled[cat] = cb.checked;
+        try {
+          await persistSettings();
+          setSettingsStatus(t("saved"), "ok");
+        } catch (e) {
+          setSettingsStatus(t("notSaved", errorText(e)), "err");
+        }
+      });
+      label.append(cb, document.createTextNode(t(`cat_${cat}`)));
+      box.append(label);
+    }
+  }
+
+  function setSettingsStatus(text, cls) {
+    const el = $("settings-status");
+    el.textContent = text;
+    el.className = `status ${cls || ""}`;
+  }
+
+  let resetArmed = null;
+
+  async function onReset() {
+    const btn = $("btn-reset");
+    if (!resetArmed) {
+      btn.textContent = t("resetConfirm");
+      resetArmed = setTimeout(() => {
+        resetArmed = null;
+        btn.textContent = t("resetMap");
+      }, 4000);
+      return;
+    }
+    clearTimeout(resetArmed);
+    resetArmed = null;
+    btn.textContent = t("resetMap");
+    state.map = newMap();
+    state.mapBroken = false;
+    $("load-error").hidden = true;
+    await persistMap();
+    renderMappings();
+    setSettingsStatus(t("resetDone"), "ok");
+  }
+
+  /* ---------- navigation and startup ---------- */
+
+  function show(view) {
+    for (const btn of document.querySelectorAll("nav button")) {
+      if (btn.dataset.view === view) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
+    }
+    for (const sec of document.querySelectorAll("main .view")) sec.hidden = sec.id !== `view-${view}`;
+    if (view === "mappings") renderMappings();
+  }
+
+  function applyI18n() {
+    LANG = I18N[state.lang] ? state.lang : SYSTEM_LANG;
+    document.documentElement.lang = LANG;
+    for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll("[data-i18n-placeholder]")) {
+      el.placeholder = t(el.dataset.i18nPlaceholder);
+    }
+    $("version").textContent = `topomask ${VERSION}`;
+  }
+
+  function loadState(files) {
+    if (files["terms.txt"] != null) state.terms = files["terms.txt"];
+    if (files["keep.txt"] != null) state.keep = files["keep.txt"];
+    if (files["settings.json"]) {
+      try {
+        const s = JSON.parse(files["settings.json"]);
+        if (s && typeof s.enabled === "object") Object.assign(state.enabled, s.enabled);
+        if (s && (s.lang === "auto" || hasOwn(I18N, s.lang))) state.lang = s.lang;
+      } catch (_) {
+        // A corrupt settings file falls back to the defaults; it is rewritten on the next change.
+      }
+    }
+    if (files["map.json"]) {
+      try {
+        const m = JSON.parse(files["map.json"]);
+        restore("", m);
+        state.map = m;
+      } catch (e) {
+        state.mapBroken = true;
+        const banner = $("load-error");
+        banner.textContent = t("mapInvalid", errorText(e));
+        banner.hidden = false;
+      }
+    }
+  }
+
+  async function init() {
+    try {
+      loadState(await backend.load());
+    } catch (e) {
+      setStatus(errorText(e), "err");
+    }
+    applyI18n();
+    $("lang").value = state.lang;
+    $("lang").addEventListener("change", async () => {
+      state.lang = $("lang").value;
+      applyI18n();
+      renderSettings();
+      renderMappings();
+      try {
+        await persistSettings();
+        setSettingsStatus(t("saved"), "ok");
+      } catch (e) {
+        setSettingsStatus(t("notSaved", errorText(e)), "err");
+      }
+    });
+    $("terms").value = state.terms;
+    $("keep").value = state.keep;
+    bindEditor("terms", "terms.txt", "terms");
+    bindEditor("keep", "keep.txt", "keep");
+    renderSettings();
+    for (const btn of document.querySelectorAll("nav button")) {
+      btn.addEventListener("click", () => show(btn.dataset.view));
+    }
+    $("btn-anonymize").addEventListener("click", onAnonymize);
+    $("btn-restore").addEventListener("click", onRestore);
+    $("btn-paste").addEventListener("click", onPaste);
+    $("btn-clear").addEventListener("click", () => {
+      $("input").value = "";
+      $("output").replaceChildren();
+      $("chips").replaceChildren();
+      setStatus("");
+    });
+    $("btn-reset").addEventListener("click", onReset);
+    $("search").addEventListener("input", renderMappings);
+    $("input").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+        ev.preventDefault();
+        onAnonymize();
+      }
+    });
+    show("anonymize");
+    backend.ready();
+  }
+
+  if (HOST === "desktop") {
+    if (window.pywebview && window.pywebview.api) init();
+    else window.addEventListener("pywebviewready", init, { once: true });
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
